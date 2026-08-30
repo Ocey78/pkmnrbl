@@ -1,11 +1,45 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Find-GitExecutable {
+    $gitCommand = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue
+    if ($gitCommand) {
+        return $gitCommand.Source
+    }
+
+    $programFilesRoots = @(
+        $env:ProgramFiles,
+        [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    foreach ($programFilesRoot in $programFilesRoots) {
+        $visualStudioRoot = Join-Path $programFilesRoot 'Microsoft Visual Studio'
+        if (-not (Test-Path -LiteralPath $visualStudioRoot)) {
+            continue
+        }
+
+        foreach ($yearDirectory in Get-ChildItem -LiteralPath $visualStudioRoot -Directory) {
+            foreach ($editionDirectory in Get-ChildItem -LiteralPath $yearDirectory.FullName -Directory) {
+                $candidate = Join-Path $editionDirectory.FullName 'Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\Git\cmd\git.exe'
+                if (Test-Path -LiteralPath $candidate) {
+                    return $candidate
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
 $CheckerPath = Join-Path $PSScriptRoot '..\tools\Check-RepositoryPolicy.ps1'
-$GitPath = 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\Git\cmd\git.exe'
+$GitPath = Find-GitExecutable
 
 if (-not (Test-Path -LiteralPath $CheckerPath)) {
     throw "Repository policy checker is missing: $CheckerPath"
+}
+
+if (-not $GitPath) {
+    throw 'Git executable was not found. Add git.exe to PATH or install Visual Studio with Git support.'
 }
 
 function New-TemporaryRepository {
