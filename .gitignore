@@ -1,0 +1,58 @@
+# Legally obtained title data and derivative artifacts
+/local/
+/generated/
+/nand/
+/extracted/
+/game/
+/content/
+/title/
+*.wad
+*.dol
+*.tmd
+*.tik
+*.cert
+*.app
+*.iso
+*.wbfs
+*.wia
+*.rvz
+*.gcm
+*.rpx
+*.rpl
+boot.bin
+bi2.bin
+ticket.bin
+title.tmd
+uid.sys
+setting.txt
+
+# Generated translation units
+*_recomp.cpp
+*_translated.cpp
+func_*.cpp
+functions_*.cpp
+
+# Build output
+/build/
+/out/
+/dist/
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Testing/
+
+# IDE output
+/.vs/
+/.vscode/
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+
+# Logs and local configuration
+*.log
+/logs/
+.env
+.env.*
+*.local
+/config/local/
