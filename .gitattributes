@@ -1,0 +1,3 @@
+# Preserve the pinned NWiiRecomp import byte-for-byte, including upstream
+# whitespace that must not be rewritten by project maintenance tools.
+third_party/NWiiRecomp/** -whitespace
