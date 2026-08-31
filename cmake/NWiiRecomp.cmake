@@ -1,4 +1,5 @@
 include(FetchContent)
+include("${CMAKE_CURRENT_LIST_DIR}/NWiiRecompSources.cmake")
 
 set(PKMNRBL_NWII_ROOT "${CMAKE_CURRENT_LIST_DIR}/../third_party/NWiiRecomp")
 
@@ -45,10 +46,9 @@ else()
     FetchContent_MakeAvailable(glad)
 endif()
 
-file(GLOB_RECURSE NWII_RUNTIME_SOURCES CONFIGURE_DEPENDS
-    "${PKMNRBL_NWII_ROOT}/nWiiRuntime/src/*.cpp")
-list(REMOVE_ITEM NWII_RUNTIME_SOURCES
-    "${PKMNRBL_NWII_ROOT}/nWiiRuntime/src/core/main.cpp")
+pkmnrbl_collect_nwii_runtime_sources(
+    NWII_RUNTIME_SOURCES
+    "${PKMNRBL_NWII_ROOT}/nWiiRuntime")
 
 add_library(nwiiruntime STATIC ${NWII_RUNTIME_SOURCES})
 target_include_directories(nwiiruntime PUBLIC
