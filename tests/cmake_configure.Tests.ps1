@@ -36,7 +36,8 @@ try {
         $ErrorActionPreference = 'Continue'
         $configureOutput = & $cmakeExecutable -S $copiedSourceRoot -B $buildRoot `
             -G Ninja "-DCMAKE_MAKE_PROGRAM=$ninjaProbe" `
-            '-DPKMNRBL_BUILD_TOOLS=OFF' '-DPKMNRBL_FETCH_DEPS=OFF' 2>&1 | Out-String
+            '-DPKMNRBL_BUILD_TOOLS=OFF' '-DPKMNRBL_FETCH_DEPS=OFF' `
+            '-DPKMNRBL_BUILD_BOOT_TESTS=OFF' 2>&1 | Out-String
         $configureExitCode = $LASTEXITCODE
     }
     finally {

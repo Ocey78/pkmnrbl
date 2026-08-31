@@ -154,12 +154,22 @@ MEM2/IPC overlap, IPC outside mapped MEM2, and an IPC arena smaller than
 
 - [ ] **Step 2: Build the test and verify it fails before implementation**
 
-Run:
+Add `PKMNRBL_BUILD_BOOT_TESTS`, defaulting to `ON` when this repository is the
+top-level project. This option enables CXX and the standalone boot tests while
+keeping host tools and fetched SDL/OpenGL dependencies disabled. Run:
 
-```text
-cmake --preset windows-msvc-debug
-cmake --build --preset windows-msvc-debug --target wii_memory_layout_tests
-ctest --preset windows-msvc-debug -R wii_memory_layout --output-on-failure
+```powershell
+$env:ZIG_GLOBAL_CACHE_DIR = "$PWD\build\zig-cache-global"
+$env:ZIG_LOCAL_CACHE_DIR = "$PWD\build\zig-cache-local"
+& $env:CMAKE_EXE -S . -B build/local-boot -G Ninja `
+  -DPKMNRBL_BUILD_TOOLS=OFF -DPKMNRBL_FETCH_DEPS=OFF `
+  -DPKMNRBL_BUILD_BOOT_TESTS=ON `
+  "-DCMAKE_MAKE_PROGRAM=$env:NINJA_EXE" `
+  "-DCMAKE_CXX_COMPILER=$env:ZIG_EXE" `
+  -DCMAKE_CXX_COMPILER_ARG1=c++
+& $env:CMAKE_EXE --build build/local-boot --target wii_memory_layout_tests
+& "$((Split-Path -Parent $env:CMAKE_EXE))\ctest.exe" `
+  --test-dir build/local-boot -R wii_memory_layout --output-on-failure
 ```
 
 Expected: compile/link failure because the layout functions are undefined.
