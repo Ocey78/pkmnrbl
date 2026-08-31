@@ -33,17 +33,39 @@ jobs:
         shell: pwsh
         run: ./tests/generated_project_regression.Tests.ps1 -RecompilerPath ./build/windows-release/Release/nwiirecomp.exe
 
-      - name: Run PowerShell policy and build-script tests
+      - name: Run repository policy tests
         shell: pwsh
         run: |
-          ./tests/repository_policy.Tests.ps1
-          ./tests/cmake_configure.Tests.ps1
-          ./tests/native_build_script.Tests.ps1
+          New-Item -ItemType Directory -Force -Path build/ci-logs | Out-Null
+          & pwsh -NoProfile -File ./tests/repository_policy.Tests.ps1 2>&1 | Tee-Object -FilePath build/ci-logs/repository-policy-tests.log
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: Run asset-free configure smoke test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/ci-logs | Out-Null
+          $env:CMAKE_EXE = (Get-Command cmake.exe -CommandType Application).Source
+          & pwsh -NoProfile -File ./tests/cmake_configure.Tests.ps1 2>&1 | Tee-Object -FilePath build/ci-logs/cmake-configure-tests.log
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) { exit $exitCode }
+
+      - name: Run native build-script tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/ci-logs | Out-Null
+          $env:CMAKE_EXE = (Get-Command cmake.exe -CommandType Application).Source
+          $env:NINJA_EXE = (Get-Command ninja.exe -CommandType Application).Source
+          & pwsh -NoProfile -File ./tests/native_build_script.Tests.ps1 2>&1 | Tee-Object -FilePath build/ci-logs/native-build-script-tests.log
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) { exit $exitCode }
 
       - name: Upload test logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: windows-test-logs
-          path: build/**/Testing/**/*.log
+          path: |
+            build/ci-logs/*.log
+            build/**/Testing/**/*.log
           if-no-files-found: ignore

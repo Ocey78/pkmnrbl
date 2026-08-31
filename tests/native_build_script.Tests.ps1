@@ -32,7 +32,8 @@ function Invoke-NativeBuild {
     param(
         [Parameter(Mandatory)] [string] $RepositoryRoot,
         [switch] $ConfigureOnly,
-        [switch] $SkipGame
+        [switch] $SkipGame,
+        [switch] $HostileToolPaths
     )
 
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath,
@@ -41,13 +42,21 @@ function Invoke-NativeBuild {
     if ($SkipGame) { $arguments += '-SkipGame' }
 
     $savedErrorActionPreference = $ErrorActionPreference
+    $savedCMakeExecutable = $env:CMAKE_EXE
+    $savedNinjaExecutable = $env:NINJA_EXE
     try {
+        if ($HostileToolPaths) {
+            $env:CMAKE_EXE = Join-Path $RepositoryRoot 'missing-tools\cmake.exe'
+            $env:NINJA_EXE = Join-Path $RepositoryRoot 'missing-tools\ninja.exe'
+        }
         $ErrorActionPreference = 'Continue'
         $output = & powershell @arguments 2>&1 | Out-String
         $exitCode = $LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $savedErrorActionPreference
+        $env:CMAKE_EXE = $savedCMakeExecutable
+        $env:NINJA_EXE = $savedNinjaExecutable
     }
     return [pscustomobject]@{ ExitCode = $exitCode; Output = $output }
 }
@@ -72,7 +81,7 @@ try {
             New-SyntheticDol -Path (Join-Path $localDirectory 'main.dol') -EntryPoint $case.EntryPoint
         }
 
-        $result = Invoke-NativeBuild -RepositoryRoot $temporaryRoot
+        $result = Invoke-NativeBuild -RepositoryRoot $temporaryRoot -HostileToolPaths
         Assert-Condition -Condition ($result.ExitCode -ne 0) -Message "$($case.Name): expected validation failure before any tool build."
         Assert-Condition -Condition ($result.Output -match [regex]::Escape($case.Expected)) -Message "$($case.Name): expected '$($case.Expected)', got:$([Environment]::NewLine)$($result.Output)"
         Assert-Condition -Condition (-not (Test-Path -LiteralPath (Join-Path $temporaryRoot 'generated'))) -Message "$($case.Name): validation reached generation before rejecting the DOL."

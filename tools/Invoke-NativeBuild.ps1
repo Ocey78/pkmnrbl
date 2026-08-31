@@ -69,9 +69,9 @@ function Read-DolEntryPoint {
 }
 
 $script:ResolvedRepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot -ErrorAction Stop).Path
-$CMakeExecutable = Resolve-CMakeExecutable
 
 if ($SkipGame) {
+    $script:CMakeExecutable = Resolve-CMakeExecutable
     $ninjaExecutable = Resolve-NinjaExecutable
     Invoke-CMake -Arguments @('--preset', 'windows-asset-free', "-DCMAKE_MAKE_PROGRAM=$ninjaExecutable")
     Write-Host 'Asset-free configuration completed. No title data was read.'
@@ -94,6 +94,7 @@ if ($actualSha1 -ne $ExpectedDolSha1) {
     throw "Unexpected DOL SHA-1: expected $ExpectedDolSha1, got $actualSha1."
 }
 
+$script:CMakeExecutable = Resolve-CMakeExecutable
 Invoke-CMake -Arguments @('--preset', 'windows-msvc-release')
 if ($ConfigureOnly) {
     Write-Host 'Host configuration completed after verified local title-data validation.'
