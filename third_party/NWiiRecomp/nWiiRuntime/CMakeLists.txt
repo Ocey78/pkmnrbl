@@ -65,7 +65,8 @@ add_library(nwiiruntime STATIC
     src/hle/devices/stm_device.cpp
     src/hle/devices/usb_device.cpp
     src/hle/devices/es_device.cpp
-    src/hle/interpreter.cpp
+    ../../../runtime/boot/wii_memory_layout.cpp
+    ../../../runtime/boot/nwii_guest_memory.cpp
 )
 
 target_link_libraries(nwiiruntime PUBLIC SDL2-static tomlplusplus::tomlplusplus glad)
@@ -88,6 +89,7 @@ endif()
 
 target_include_directories(nwiiruntime PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
 # add_executable(nwiiruntime_exe src/main.cpp)

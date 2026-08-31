@@ -51,8 +51,12 @@ pkmnrbl_collect_nwii_runtime_sources(
     "${PKMNRBL_NWII_ROOT}/nWiiRuntime")
 
 add_library(nwiiruntime STATIC ${NWII_RUNTIME_SOURCES})
+target_sources(nwiiruntime PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../runtime/boot/wii_memory_layout.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../runtime/boot/nwii_guest_memory.cpp")
 target_include_directories(nwiiruntime PUBLIC
-    "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+    "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include"
+    "${CMAKE_CURRENT_LIST_DIR}/..")
 target_link_libraries(nwiiruntime PUBLIC
     pkmnrbl_build_options
     SDL2-static

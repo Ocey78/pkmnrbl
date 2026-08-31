@@ -6,6 +6,7 @@
 #include "runtime/config.h"
 #include "runtime/cpu_context.h"
 #include "runtime/virtual_disc.h"
+#include "runtime/boot/nwii_guest_memory.h"
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -323,31 +324,18 @@ int main(int argc, char **argv) {
               << " size 0x" << fst_size << std::dec << std::endl;
   }
 
-  // Console type (Dolphin BootManager): Wii retail Hollywood = 0x10000006,
-  
-  uint32_t console_type = is_gc ? 0x00000003 : 0x10000006;
-  uint32_t mem1_size = 24 * 1024 * 1024; 
-  uint32_t mem2_size = 64 * 1024 * 1024; 
-
-  ctx->mmu.write32(0x80000020, is_gc ? 0x0D15EA5E : console_type); 
-  
-  ctx->mmu.write32(0x80000024, mem1_size);
-  
-  ctx->mmu.write32(0x80000028, mem1_size);
-  ctx->mmu.write32(0x8000002C, console_type);
-  // Arena bounds, apploader-style (matches Dolphin BS2 emulation):
-
-  
-
-  if (!is_gc) {
-    ctx->mmu.write32(0x80000030, arena_lo);
-    ctx->mmu.write32(0x80000034, arena_hi);
-  }
   if (!vdisc.valid()) {
     
     ctx->mmu.write32(0x80000038, arena_hi);
   }
   if (is_gc) {
+
+    const uint32_t mem1_size = 24 * 1024 * 1024;
+    const uint32_t console_type = 0x00000003;
+    ctx->mmu.write32(0x80000020, 0x0D15EA5E);
+    ctx->mmu.write32(0x80000024, mem1_size);
+    ctx->mmu.write32(0x80000028, mem1_size);
+    ctx->mmu.write32(0x8000002C, console_type);
 
     
 
@@ -374,11 +362,9 @@ int main(int argc, char **argv) {
     ctx->mmu.write32(0x80000030, arena_lo);
     ctx->mmu.write32(0x80000034, gc_arena_hi);
     std::cout << "[Loader] GC Arena = 0x" << std::hex << arena_lo << " - 0x"
-              << gc_arena_hi << " (" << std::dec
-              << (gc_arena_hi - arena_lo) / 1024 << " KiB)" << std::endl;
+              << gc_arena_hi << std::dec << std::endl;
+    ctx->mmu.write32(0x800000F0, mem1_size);
   }
-  
-  ctx->mmu.write32(0x800000F0, mem1_size);
 
   
 
@@ -390,23 +376,6 @@ int main(int argc, char **argv) {
         return; 
     ctx->mmu.write32(addr, val);
   };
-
-  if (!is_gc) {
-
-    poke_global(0x80003118, mem2_size);
-    poke_global(0x8000311C, mem2_size);
-    
-    poke_global(0x80003124, 0x90000800);
-    poke_global(0x80003128, 0x93e00000);
-    poke_global(0x80003130, 0x93e00000);
-    poke_global(0x80003134, 0x94000000);
-    
-    poke_global(0x80003158, 0x00000023);
-  }
-
-  
-
-  
 
   {
     const std::string &gid = nwii::runtime::Config::get().game_id;
@@ -421,18 +390,20 @@ int main(int argc, char **argv) {
 
   ctx->gpr[1] = 0x816FFFF0;
 
-  // Low memory 0xF8/0xFC hold the BUS and CPU clocks (Dolphin writes
-
-  
-  
   if (is_gc) {
     ctx->mmu.write32(0x800000F8, 162000000); 
     ctx->mmu.write32(0x800000FC, 486000000); 
     ctx->tb_freq = 40500000;                 
   } else {
-    ctx->mmu.write32(0x800000F8, 243000000); 
-    ctx->mmu.write32(0x800000FC, 729000000); 
-    ctx->tb_freq = 60750000;                 
+    std::string boot_memory_error;
+    if (!install_wpse01_boot_memory(*ctx, arena_lo, arena_hi, boot_memory_error)) {
+      std::cerr << "[Boot] Wii boot memory installation failed: " << boot_memory_error << '\n';
+      return 1;
+    }
+    std::cout << "[Boot] validated Wii ranges: MEM1 0x" << std::hex << arena_lo
+              << "-0x" << arena_hi << ", MEM2 0x90000800-0x93E00000"
+              << ", IPC 0x93E00000-0x94000000" << std::dec << std::endl;
+    ctx->tb_freq = 60750000;
   }
 
   ctx->tb_start = std::chrono::steady_clock::now();

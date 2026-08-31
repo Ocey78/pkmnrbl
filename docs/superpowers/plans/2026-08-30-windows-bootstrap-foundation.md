@@ -227,7 +227,23 @@ entry with a clear error if validation or installation fails.
 
 - [ ] **Step 4: Run unit and integration tests**
 
-Run: `ctest --preset windows-msvc-debug --output-on-failure`
+The Windows presets arrive in Task 5, so use the same private local CMake,
+Ninja, and Zig toolchain as Task 3 while keeping host tools and fetched
+SDL/OpenGL dependencies disabled:
+
+```powershell
+$env:ZIG_GLOBAL_CACHE_DIR = "$PWD\build\zig-cache-global"
+$env:ZIG_LOCAL_CACHE_DIR = "$PWD\build\zig-cache-local"
+& $env:CMAKE_EXE -S . -B build/local-boot -G Ninja `
+  -DPKMNRBL_BUILD_TOOLS=OFF -DPKMNRBL_FETCH_DEPS=OFF `
+  -DPKMNRBL_BUILD_BOOT_TESTS=ON `
+  "-DCMAKE_MAKE_PROGRAM=$env:NINJA_EXE" `
+  "-DCMAKE_CXX_COMPILER=$env:ZIG_EXE" `
+  -DCMAKE_CXX_COMPILER_ARG1=c++
+& $env:CMAKE_EXE --build build/local-boot
+& "$((Split-Path -Parent $env:CMAKE_EXE))\ctest.exe" `
+  --test-dir build/local-boot --output-on-failure
+```
 
 Expected: all boot tests pass.
 

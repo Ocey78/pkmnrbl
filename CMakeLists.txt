@@ -23,7 +23,9 @@ endif()
 if(PKMNRBL_BUILD_BOOT_TESTS)
     enable_testing()
     add_library(wii_memory_layout OBJECT runtime/boot/wii_memory_layout.cpp)
-    target_include_directories(wii_memory_layout PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_include_directories(wii_memory_layout PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
     target_compile_features(wii_memory_layout PUBLIC cxx_std_20)
 
     add_executable(wii_memory_layout_tests tests/wii_memory_layout_tests.cpp)
@@ -31,6 +33,16 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(wii_memory_layout_tests PRIVATE cxx_std_20)
     target_link_libraries(wii_memory_layout_tests PRIVATE wii_memory_layout)
     add_test(NAME wii_memory_layout COMMAND wii_memory_layout_tests)
+
+    add_executable(nwii_boot_integration_tests
+        tests/nwii_boot_integration_tests.cpp
+        runtime/boot/nwii_guest_memory.cpp)
+    target_include_directories(nwii_boot_integration_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(nwii_boot_integration_tests PRIVATE cxx_std_20)
+    target_link_libraries(nwii_boot_integration_tests PRIVATE wii_memory_layout)
+    add_test(NAME nwii_boot_integration COMMAND nwii_boot_integration_tests)
 endif()
 
 add_library(pkmnrbl_build_options INTERFACE)
