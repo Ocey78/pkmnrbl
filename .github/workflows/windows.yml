@@ -1,0 +1,49 @@
+name: Windows x64
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce repository policy before configuration
+        shell: pwsh
+        run: ./tools/Check-RepositoryPolicy.ps1 -RepositoryRoot .
+
+      - name: Configure debug boot tests
+        run: cmake --preset windows-msvc-debug
+
+      - name: Build boot and real-MMU tests
+        run: cmake --build --preset windows-msvc-debug --target wii_memory_layout_tests nwii_boot_integration_tests
+
+      - name: Run boot and real-MMU tests
+        run: ctest --preset windows-msvc-debug
+
+      - name: Configure dependency-enabled Release host and runtime
+        run: cmake --preset windows-msvc-release
+
+      - name: Build redistributable host and runtime targets
+        run: cmake --build --preset windows-msvc-release --target nwiirecomp nwiiruntime
+
+      - name: Run generated-project regression without title data
+        shell: pwsh
+        run: ./tests/generated_project_regression.Tests.ps1 -RecompilerPath ./build/windows-release/Release/nwiirecomp.exe
+
+      - name: Run PowerShell policy and build-script tests
+        shell: pwsh
+        run: |
+          ./tests/repository_policy.Tests.ps1
+          ./tests/cmake_configure.Tests.ps1
+          ./tests/native_build_script.Tests.ps1
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-logs
+          path: build/**/Testing/**/*.log
+          if-no-files-found: ignore

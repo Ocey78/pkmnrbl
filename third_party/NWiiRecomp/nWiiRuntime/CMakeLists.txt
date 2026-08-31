@@ -65,9 +65,17 @@ add_library(nwiiruntime STATIC
     src/hle/devices/stm_device.cpp
     src/hle/devices/usb_device.cpp
     src/hle/devices/es_device.cpp
-    ../../../runtime/boot/wii_memory_layout.cpp
-    ../../../runtime/boot/nwii_guest_memory.cpp
 )
+
+# A standalone recompiler export copies the port-owned boot sources here.  The
+# root project supplies its own copies when building directly from this source
+# tree, so this remains optional for the imported runtime.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/boot/wii_memory_layout.cpp")
+    target_sources(nwiiruntime PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/boot/wii_memory_layout.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/boot/nwii_guest_memory.cpp")
+    target_include_directories(nwiiruntime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
 
 target_link_libraries(nwiiruntime PUBLIC SDL2-static tomlplusplus::tomlplusplus glad)
 
@@ -89,7 +97,6 @@ endif()
 
 target_include_directories(nwiiruntime PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
 # add_executable(nwiiruntime_exe src/main.cpp)

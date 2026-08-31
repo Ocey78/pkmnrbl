@@ -800,6 +800,7 @@ bool Recompiler::generate_cmake_project(uint32_t entry_point) {
   try {
     namespace fs = std::filesystem;
     const fs::path src = config_.runtime_source_dir;
+    const fs::path boot_src = config_.runtime_boot_source_dir;
     const auto opts = fs::copy_options::overwrite_existing;
 
     auto skip = [](const fs::path &rel) {
@@ -823,6 +824,23 @@ bool Recompiler::generate_cmake_project(uint32_t entry_point) {
         continue;
       }
       const fs::path dest = fs::path(runtime_dest) / rel;
+      if (it->is_directory())
+        fs::create_directories(dest);
+      else if (it->is_regular_file())
+        fs::copy_file(it->path(), dest, opts);
+    }
+
+    if (boot_src.empty() || !fs::is_directory(boot_src)) {
+      std::cerr << "Runtime boot source directory is missing: " << boot_src
+                << "\n";
+      return false;
+    }
+    const fs::path boot_dest = fs::path(runtime_dest) / "runtime" / "boot";
+    fs::create_directories(boot_dest);
+    for (auto it = fs::recursive_directory_iterator(boot_src);
+         it != fs::recursive_directory_iterator(); ++it) {
+      const fs::path rel = fs::relative(it->path(), boot_src);
+      const fs::path dest = boot_dest / rel;
       if (it->is_directory())
         fs::create_directories(dest);
       else if (it->is_regular_file())
@@ -884,6 +902,13 @@ bool Recompiler::generate_cmake_project(uint32_t entry_point) {
 
   out << "add_subdirectory(nWiiRuntime)\n\n";
 
+  out << "set(PKMNRBL_RUNTIME_OUTPUT_DIRECTORY \"${CMAKE_BINARY_DIR}/..\")\n";
+  out << "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"${PKMNRBL_RUNTIME_OUTPUT_DIRECTORY}\")\n";
+  out << "foreach(_config Debug Release RelWithDebInfo MinSizeRel)\n";
+  out << "  string(TOUPPER \"${_config}\" _config_upper)\n";
+  out << "  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${_config_upper} \"${PKMNRBL_RUNTIME_OUTPUT_DIRECTORY}\")\n";
+  out << "endforeach()\n\n";
+
   out << "add_executable(" << config_.project_name
       << " nWiiRuntime/src/core/main.cpp";
   for (const auto &file : generated_files) {
@@ -897,6 +922,18 @@ bool Recompiler::generate_cmake_project(uint32_t entry_point) {
   
   out << "target_link_libraries(" << config_.project_name
       << " PRIVATE nwiiruntime)\n";
+
+  out << "set_target_properties(" << config_.project_name
+      << " PROPERTIES\n"
+      << "  OUTPUT_NAME \"PokemonRumble\"\n"
+      << "  RUNTIME_OUTPUT_DIRECTORY \"${PKMNRBL_RUNTIME_OUTPUT_DIRECTORY}\")\n";
+  out << "foreach(_config Debug Release RelWithDebInfo MinSizeRel)\n";
+  out << "  string(TOUPPER \"${_config}\" _config_upper)\n";
+  out << "  set_property(TARGET " << config_.project_name
+      << " PROPERTY RUNTIME_OUTPUT_DIRECTORY_${_config_upper} \"${PKMNRBL_RUNTIME_OUTPUT_DIRECTORY}\")\n";
+  out << "endforeach()\n";
+  out << "target_compile_options(" << config_.project_name
+      << " PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)\n";
 
   return true;
 }

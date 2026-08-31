@@ -1,0 +1,7 @@
+project_name = "PokemonRumble"
+input_game_dir = "local/WPSE01_01/extracted"
+output_dir = "generated/WPSE01_01"
+runtime_source_dir = "third_party/NWiiRecomp/nWiiRuntime"
+runtime_boot_source_dir = "runtime/boot"
+split_output = true
+instructions_per_file = 20000

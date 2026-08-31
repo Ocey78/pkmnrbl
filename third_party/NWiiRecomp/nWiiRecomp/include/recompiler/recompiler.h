@@ -13,6 +13,7 @@ struct RecompilerConfig {
     std::string input_game_dir = "";
     std::string output_dir = "export";
     std::string runtime_source_dir = "../nWiiRuntime";
+    std::string runtime_boot_source_dir = "";
     std::string symbols_csv = "";
 
     bool split_output = false;

@@ -1,0 +1,76 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-msvc-debug",
+      "displayName": "Windows MSVC x64 Debug",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64"
+      },
+      "binaryDir": "${sourceDir}/build/windows-debug",
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
+        "PKMNRBL_BUILD_TOOLS": "OFF",
+        "PKMNRBL_FETCH_DEPS": "OFF",
+        "PKMNRBL_BUILD_BOOT_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows-msvc-release",
+      "displayName": "Windows MSVC x64 Release",
+      "inherits": "windows-msvc-debug",
+      "binaryDir": "${sourceDir}/build/windows-release",
+      "cacheVariables": {
+        "PKMNRBL_BUILD_TOOLS": "ON",
+        "PKMNRBL_FETCH_DEPS": "ON"
+      }
+    },
+    {
+      "name": "windows-asset-free",
+      "displayName": "Windows asset-free configuration",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-asset-free",
+      "cacheVariables": {
+        "PKMNRBL_BUILD_TOOLS": "OFF",
+        "PKMNRBL_FETCH_DEPS": "OFF",
+        "PKMNRBL_BUILD_BOOT_TESTS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-msvc-debug",
+      "configurePreset": "windows-msvc-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-msvc-release",
+      "configurePreset": "windows-msvc-release",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-msvc-debug",
+      "configurePreset": "windows-msvc-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-msvc-release",
+      "configurePreset": "windows-msvc-release",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

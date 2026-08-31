@@ -22,6 +22,26 @@ The checker examines tracked paths and rejects known title-data extensions,
 title-data filenames, and protected directory roots. `.gitignore` prevents
 these materials and normal build artifacts from being added accidentally.
 
+## Windows builds
+
+The asset-free configuration needs no game data or C++ compiler:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/Invoke-NativeBuild.ps1 -ConfigureOnly -SkipGame
+```
+
+For a local native build, place a legally obtained, verified `main.dol` only
+at `local/WPSE01_01/extracted/main.dol`, then run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/Invoke-NativeBuild.ps1
+```
+
+The script verifies the fixed WPSE01 DOL SHA-1 and entry point before it builds
+or runs the recompiler. A successful game build writes the executable exactly
+to `build/windows-release/PokemonRumble.exe`; `local/`, `generated/`, and
+`build/` remain ignored.
+
 ## Licensing and notices
 
 The original material in this repository is licensed under the MIT License;

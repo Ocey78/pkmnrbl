@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
         config.input_game_dir = tbl["input_game_dir"].value_or(".");
         config.output_dir = tbl["output_dir"].value_or("export");
         config.runtime_source_dir = tbl["runtime_source_dir"].value_or("../nWiiRuntime");
+        config.runtime_boot_source_dir = tbl["runtime_boot_source_dir"].value_or("");
         config.symbols_csv = tbl["symbols_csv"].value_or("");
         
         config.split_output = tbl["split_output"].value_or(false);
