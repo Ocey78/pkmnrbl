@@ -37,11 +37,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build/ci-logs | Out-Null
-          $ErrorActionPreference = 'Continue'
-          $output = & pwsh -NoProfile -File ./tests/repository_policy.Tests.ps1 2>&1
-          $exitCode = $LASTEXITCODE
-          $output | Tee-Object -FilePath build/ci-logs/repository-policy-tests.log
+          $restoreNativeExitPreference = $PSNativeCommandUseErrorActionPreference
+          try {
+            $PSNativeCommandUseErrorActionPreference = $false
+            $output = & pwsh -NoProfile -File ./tests/repository_policy.Tests.ps1 2>&1
+            $exitCode = $LASTEXITCODE
+          }
+          finally {
+            $PSNativeCommandUseErrorActionPreference = $restoreNativeExitPreference
+          }
           $ErrorActionPreference = 'Stop'
+          $output | Tee-Object -FilePath build/ci-logs/repository-policy-tests.log
           if ($exitCode -ne 0) { exit $exitCode }
 
       - name: Run asset-free configure smoke test
@@ -49,11 +55,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path build/ci-logs | Out-Null
           $env:CMAKE_EXE = (Get-Command cmake.exe -CommandType Application).Source
-          $ErrorActionPreference = 'Continue'
-          $output = & pwsh -NoProfile -File ./tests/cmake_configure.Tests.ps1 2>&1
-          $exitCode = $LASTEXITCODE
-          $output | Tee-Object -FilePath build/ci-logs/cmake-configure-tests.log
+          $restoreNativeExitPreference = $PSNativeCommandUseErrorActionPreference
+          try {
+            $PSNativeCommandUseErrorActionPreference = $false
+            $output = & pwsh -NoProfile -File ./tests/cmake_configure.Tests.ps1 2>&1
+            $exitCode = $LASTEXITCODE
+          }
+          finally {
+            $PSNativeCommandUseErrorActionPreference = $restoreNativeExitPreference
+          }
           $ErrorActionPreference = 'Stop'
+          $output | Tee-Object -FilePath build/ci-logs/cmake-configure-tests.log
           if ($exitCode -ne 0) { exit $exitCode }
 
       - name: Run native build-script tests
@@ -62,11 +74,17 @@ jobs:
           New-Item -ItemType Directory -Force -Path build/ci-logs | Out-Null
           $env:CMAKE_EXE = (Get-Command cmake.exe -CommandType Application).Source
           $env:NINJA_EXE = (Get-Command ninja.exe -CommandType Application).Source
-          $ErrorActionPreference = 'Continue'
-          $output = & pwsh -NoProfile -File ./tests/native_build_script.Tests.ps1 2>&1
-          $exitCode = $LASTEXITCODE
-          $output | Tee-Object -FilePath build/ci-logs/native-build-script-tests.log
+          $restoreNativeExitPreference = $PSNativeCommandUseErrorActionPreference
+          try {
+            $PSNativeCommandUseErrorActionPreference = $false
+            $output = & pwsh -NoProfile -File ./tests/native_build_script.Tests.ps1 2>&1
+            $exitCode = $LASTEXITCODE
+          }
+          finally {
+            $PSNativeCommandUseErrorActionPreference = $restoreNativeExitPreference
+          }
           $ErrorActionPreference = 'Stop'
+          $output | Tee-Object -FilePath build/ci-logs/native-build-script-tests.log
           if ($exitCode -ne 0) { exit $exitCode }
 
       - name: Upload test logs on failure
