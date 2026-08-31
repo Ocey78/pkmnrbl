@@ -74,9 +74,25 @@ function Add-TrackedFile {
 function Invoke-PolicyChecker {
     param([Parameter(Mandatory)] [string] $RepositoryRoot)
 
-    $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $CheckerPath -RepositoryRoot $RepositoryRoot 2>&1 | Out-String
+    # Expected-rejection cases deliberately invoke a checker that exits 1.
+    # PowerShell 7 can promote that normal external exit into a terminating
+    # error when this preference is enabled by a runner or wrapper.
+    $restoreNativeExitPreference = $null
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        $restoreNativeExitPreference = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+    try {
+        $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $CheckerPath -RepositoryRoot $RepositoryRoot 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            $PSNativeCommandUseErrorActionPreference = $restoreNativeExitPreference
+        }
+    }
     return [pscustomobject]@{
-        ExitCode = $LASTEXITCODE
+        ExitCode = $exitCode
         Output = $output
     }
 }
@@ -130,3 +146,8 @@ finally {
         }
     }
 }
+
+# The expected rejection cases leave a nonzero native exit code behind.  A
+# caller may invoke this test through another PowerShell process, so make this
+# suite's all-assertions-passed result unambiguous.
+exit 0
