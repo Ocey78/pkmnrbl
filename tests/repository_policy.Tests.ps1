@@ -2,7 +2,10 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 function Find-GitExecutable {
-    $gitCommand = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue
+    # Clean Windows runners expose Git through several PATH entries. Select one
+    # command explicitly so PowerShell does not return an array of executables.
+    $gitCommand = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if ($gitCommand) {
         return $gitCommand.Source
     }
