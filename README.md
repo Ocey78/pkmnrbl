@@ -5,6 +5,10 @@ Pokémon Rumble (`WPSE01_01`). The eventual port uses ahead-of-time PowerPC
 translation and a purpose-built compatibility runtime; it does not ship a
 general-purpose emulator.
 
+The current boot position, exact remaining blockers, and acceptance gates for
+the first usable build are tracked in
+[`docs/FIRST_NATIVE_BUILD.md`](docs/FIRST_NATIVE_BUILD.md).
+
 ## Repository safety
 
 This is a redistributable source repository only. It must never contain WADs,
