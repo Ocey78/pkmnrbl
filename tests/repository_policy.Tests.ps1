@@ -33,6 +33,7 @@ function Find-GitExecutable {
 
 $CheckerPath = Join-Path $PSScriptRoot '..\tools\Check-RepositoryPolicy.ps1'
 $GitPath = Find-GitExecutable
+$PowerShellPath = Join-Path $PSHOME 'pwsh.exe'
 
 if (-not (Test-Path -LiteralPath $CheckerPath)) {
     throw "Repository policy checker is missing: $CheckerPath"
@@ -40,6 +41,10 @@ if (-not (Test-Path -LiteralPath $CheckerPath)) {
 
 if (-not $GitPath) {
     throw 'Git executable was not found. Add git.exe to PATH or install Visual Studio with Git support.'
+}
+
+if (-not (Test-Path -LiteralPath $PowerShellPath)) {
+    throw "Current PowerShell executable was not found: $PowerShellPath"
 }
 
 function New-TemporaryRepository {
@@ -83,7 +88,7 @@ function Invoke-PolicyChecker {
         $PSNativeCommandUseErrorActionPreference = $false
     }
     try {
-        $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $CheckerPath -RepositoryRoot $RepositoryRoot 2>&1 | Out-String
+        $output = & $PowerShellPath -NoProfile -File $CheckerPath -RepositoryRoot $RepositoryRoot 2>&1 | Out-String
         $exitCode = $LASTEXITCODE
     }
     finally {

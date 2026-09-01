@@ -48,7 +48,11 @@ jobs:
           }
           $ErrorActionPreference = 'Stop'
           $output | Tee-Object -FilePath build/ci-logs/repository-policy-tests.log
-          if ($exitCode -ne 0) { exit $exitCode }
+          if ($exitCode -ne 0) {
+            $annotation = (($output | Out-String).Trim() -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A')
+            Write-Output "::error title=Repository policy tests failed::$annotation"
+            exit $exitCode
+          }
 
       - name: Run asset-free configure smoke test
         shell: pwsh
