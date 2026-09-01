@@ -79,6 +79,10 @@ endif()
 
 target_link_libraries(nwiiruntime PUBLIC SDL2-static tomlplusplus::tomlplusplus glad)
 
+if(WIN32)
+    target_link_libraries(nwiiruntime PUBLIC ws2_32)
+endif()
+
 if(APPLE)
     find_library(COCOA_LIBRARY Cocoa)
     find_library(METAL_LIBRARY Metal)

@@ -346,7 +346,7 @@ std::vector<std::string> Recompiler::generate_cpp(uint32_t entry_point) {
            "          }\n"
            "          continue;\n"
            "      }\n";
-    out << "      if (_setjmp(ctx.exception_jmp_buf) == 0) {\n";
+    out << "      if (setjmp(ctx.exception_jmp_buf) == 0) {\n";
     out << "        process_pending_callbacks(ctx);\n";
     out << "        if (ctx.pc == 0xFFFFFFFC) {\n";
     out << "            if (!ctx.backup_stack.empty()) {\n";
@@ -918,6 +918,15 @@ bool Recompiler::generate_cmake_project(uint32_t entry_point) {
 
   out << "target_include_directories(" << config_.project_name
       << " PRIVATE nWiiRuntime/src nWiiRuntime/include)\n";
+
+  out << "option(PKMNRBL_ENABLE_BRINGUP_INTERPRETER\n";
+  out << "  \"Enable the temporary PPC fallback required during bring-up\" ON)\n";
+  out << "if(PKMNRBL_ENABLE_BRINGUP_INTERPRETER)\n";
+  out << "  target_sources(" << config_.project_name
+      << " PRIVATE nWiiRuntime/src/hle/interpreter.cpp)\n";
+  out << "endif()\n";
+  out << "target_compile_definitions(" << config_.project_name
+      << " PRIVATE SDL_MAIN_HANDLED)\n";
 
   
   out << "target_link_libraries(" << config_.project_name
