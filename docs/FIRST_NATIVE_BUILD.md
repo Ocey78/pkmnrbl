@@ -60,48 +60,62 @@ and opens `/dev/usb/oh1/57e/305`. The previous failures no longer appear:
 - `Allocation of diCommand blocks failed`
 - `(newContext) Something overwrote the context magic`
 
-The first unresolved transaction is an asynchronous USB interrupt read:
+The asynchronous IPC defect at the first USB interrupt read is resolved. The
+runtime now acknowledges a pending IOS request with `Y2` without fabricating a
+`Y1` reply, then preserves asynchronous and synchronous replies in submission
+order. A real-MMIO regression covers the nested completion case that previously
+overwrote the older reply address.
+
+The corrected boot completes the pending endpoint `0x81` request, submits an
+endpoint `0x82` bulk read, and processes these HCI command-complete events:
+
+```text
+0x0C03  Reset
+0x1005  Read Buffer Size
+0x0C24  Write Class of Device
+0x0C13  Write Local Name
+0x0C0A  Write Scan Enable
+```
+
+After the fifth command the guest submits another asynchronous endpoint `0x81`
+read and waits at:
 
 ```text
 guest PC       0x80313DE0
 guest LR       0x80313DDC
-request        0x93E00020
+request        0x93E002C0
 USB command    2 (interrupt message)
 endpoint       0x81 (HCI event endpoint)
 length         0x025C
-output buffer  physical MEM2 0x10000880
+output buffer  physical MEM2 0x100022C0
 result         IPC_NO_REPLY
 ```
 
-The guest then polls byte `0x804AB3C6` for state `5`. No USB control message
-containing the first HCI command is submitted before that poll. Physical MEM2
-addressing is not the fault: the MMU deliberately accepts the physical and
-virtual MEM2 aliases.
+The guest polls byte `0x804AB3C6` for state `5`. The next required controller
+event or guest transition has not yet been identified. Physical MEM2 addressing
+is not the fault: the MMU deliberately accepts the physical and virtual MEM2
+aliases. No unsolicited controller event will be synthesized without first
+proving that the guest state machine expects it.
 
 ## Exact remaining work, in order
 
 | Order | Required work | Proof required before advancing |
 |---:|---|---|
-| 1 | Validate generated Windows linking on a clean MSVC runner. The generated project must use portable `setjmp`, define `SDL_MAIN_HANDLED`, link `ws2_32`, apply `/bigobj`, and include the temporary interpreter only when `PKMNRBL_ENABLE_BRINGUP_INTERPRETER=ON`. | GitHub Windows workflow passes policy, CTest, runtime build, synthetic generated-project regression, and native build-script tests. |
-| 2 | Trace the pending IOS request without changing behavior. Record PPC/ARM IPC control registers, PI interrupt state, request result field, callback address, and guest state before submission, immediately after `IPC_NO_REPLY`, and only after `ipc_post_reply`. | One trace identifies whether the guest receives an early reply/interrupt or whether its own Bluetooth state machine fails before the first control transfer. |
-| 3 | Add a real regression test for the transition identified in step 2. If `IPC_NO_REPLY` is the fault, the test must submit through the real IPC MMIO path and prove that no reply bit, result completion, callback, or interrupt is produced until `ipc_post_reply`. If the guest state machine is the fault, test that exact USB/HCI boundary instead. | The new test fails against the current runtime for the observed reason, not because of source-text matching or a mock. |
-| 4 | Implement only the confirmed asynchronous IPC fix. Do not synthesize an unsolicited HCI event: endpoint `0x81` is expected to remain pending until a command or controller event exists. | New regression passes; all boot/MMU tests pass; the local trace shows the first HCI control command or a later, newly identified boundary. |
-| 5 | Complete the minimum Bluetooth HCI state machine needed by the title. Parse real control-transfer vectors and return command-complete/status payloads with correct opcode-specific fields; queue events; complete the pending interrupt request through `ipc_post_reply`; preserve request ordering and lengths. | Guest byte `0x804AB3C6` reaches state `5`, the poll at `0x80313DE0` exits, and the boot reaches a later subsystem. Each newly required opcode has a literal-payload test. |
-| 6 | Correct WPSE01 identity before title-specific ES/DI behavior matters. The current default is `RSZK`; the runtime must derive or configure `WPSE` and return title ID `0001000157505345` consistently from ES ticket/title queries. | Focused ES/DI tests read the literal WPSE title ID, and the local boot no longer reports `00010000-52535A4B`. |
-| 7 | Continue trace-driven bring-up through the first rendered frame. For each new stop, capture the first incorrect boundary, write a failing test, make the smallest runtime fix, and record the new last-good PC/subsystem. Likely surfaces are VI/GX, virtual filesystem/save data, timing, and remaining IOS commands; none should be changed until a trace proves it is the next blocker. | Non-headless run creates a stable window and displays the first title-owned frame without fatal runtime errors. |
-| 8 | Connect one native input source to the title's Wii input path. The runtime currently maps keyboard/gamepad states, but Bluetooth Wiimote mode is explicitly unfinished. Use the existing `WiimoteState`/KPAD/WPAD contract or complete the virtual Bluetooth controller path, whichever the traced game calls require. | A deterministic input test verifies button layout, and a keyboard or XInput controller can navigate the first menu. |
-| 9 | Remove the temporary PowerPC fallback from the deliverable. Although all discovered functions are statically translated, current bring-up still visits interpreter address `0x802B8CEC`. Identify the unsupported dispatch/instruction path, generate or implement its native equivalent, then build with `PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF`. | Full title boot test contains no `[Interp]` execution, the interpreter source is absent from the game target, and the first menu still works. |
-| 10 | Produce the clean MSVC title build locally and re-run every gate. Install the Visual Studio 2022 Desktop C++ workload, place the legally extracted title under `local/WPSE01_01/extracted/`, and run `tools/Invoke-NativeBuild.ps1`. | `build/windows-release/PokemonRumble.exe` exists as x86-64 PE; CTest, all PowerShell suites, repository policy, Windows CI, and the local boot acceptance test pass. |
+| 1 | Trace guest byte `0x804AB3C6` across the five verified HCI completions and identify the exact condition that should move it to state `5`. Correlate each write with translated guest code and its event parser. | A trace records the state sequence and names the exact missing or malformed event/field; no response is guessed from the stationary poll alone. |
+| 2 | Complete only the minimum Bluetooth HCI behavior proven by step 1. Parse the real transfer vectors, preserve event ordering and lengths, and add a literal-payload regression for every new opcode or event. | Guest byte `0x804AB3C6` reaches state `5`, the poll at `0x80313DE0` exits, and boot reaches a later subsystem. |
+| 3 | Correct WPSE01 identity before title-specific ES/DI behavior matters. The current default is `RSZK`; the runtime must derive or configure `WPSE` and return title ID `0001000157505345` consistently from ES ticket/title queries. | Focused ES/DI tests read the literal WPSE title ID, and the local boot no longer reports `00010000-52535A4B`. |
+| 4 | Continue trace-driven bring-up through the first rendered frame. For each new stop, capture the first incorrect boundary, write a failing test, make the smallest runtime fix, and record the new last-good PC/subsystem. Likely surfaces are VI/GX, virtual filesystem/save data, timing, and remaining IOS commands; none should be changed until a trace proves it is the next blocker. | Non-headless run creates a stable window and displays the first title-owned frame without fatal runtime errors. |
+| 5 | Connect one native input source to the title's Wii input path. The runtime currently maps keyboard/gamepad states, but Bluetooth Wiimote mode is explicitly unfinished. Use the existing `WiimoteState`/KPAD/WPAD contract or complete the virtual Bluetooth controller path, whichever the traced game calls require. | A deterministic input test verifies button layout, and a keyboard or XInput controller can navigate the first menu. |
+| 6 | Remove the temporary PowerPC fallback from the deliverable. Although all discovered functions are statically translated, current bring-up still visits interpreter address `0x802B8CEC`. Identify the unsupported dispatch/instruction path, generate or implement its native equivalent, then build with `PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF`. | Full title boot test contains no `[Interp]` execution, the interpreter source is absent from the game target, and the first menu still works. |
+| 7 | Produce the clean MSVC title build locally and re-run every gate. Install the Visual Studio 2022 Desktop C++ workload, place the legally extracted title under `local/WPSE01_01/extracted/`, and run `tools/Invoke-NativeBuild.ps1`. | `build/windows-release/PokemonRumble.exe` exists as x86-64 PE; CTest, all PowerShell suites, repository policy, Windows CI, and the local boot acceptance test pass. |
 
 ## Immediate next experiment
 
-The next change must be diagnostic, not a guessed USB response. Instrument
-`third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ipc.cpp` around the
-`IPC_NO_REPLY` branch and `ipc_post_reply`, then repeat the headless boot. The
-current code schedules an IPC delay and changes control bits even for a
-pending request; this is a hypothesis, not yet a confirmed defect. The trace
-must establish whether that behavior completes or interrupts the request too
-early before any production fix is written.
+The next change is diagnostic. Run the local executable with
+`NWII_WATCH=0x804AB3C6` and USB tracing enabled, correlate every state write
+with the five verified HCI completions, and inspect the translated handler that
+owns the last transition. Only after that evidence identifies a missing or
+malformed controller event should the USB/HCI implementation change.
 
 ## Build commands
 
@@ -120,4 +134,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/Invoke-NativeBuild.ps1
 
 The resulting executable embeds translated title code and must remain local;
 GitHub stores only the redistributable port source and tooling.
-

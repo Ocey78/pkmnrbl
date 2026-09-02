@@ -43,6 +43,15 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(nwii_boot_integration_tests PRIVATE cxx_std_20)
     target_link_libraries(nwii_boot_integration_tests PRIVATE wii_memory_layout)
     add_test(NAME nwii_boot_integration COMMAND nwii_boot_integration_tests)
+
+    add_executable(ipc_async_reply_tests
+        tests/ipc_async_reply_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ipc.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/mmio_dispatcher.cpp)
+    target_include_directories(ipc_async_reply_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(ipc_async_reply_tests PRIVATE cxx_std_20)
+    add_test(NAME ipc_async_reply COMMAND ipc_async_reply_tests)
 endif()
 
 add_library(pkmnrbl_build_options INTERFACE)

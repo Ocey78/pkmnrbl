@@ -1,10 +1,12 @@
 #include "runtime/hw/hw.h"
 #include "runtime/config.h"
 #include "runtime/cpu_context.h"
+#include "runtime/ios_device.h"
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <deque>
 
 namespace nwii::runtime {
     extern CPUContext* g_ctx_ptr;
@@ -17,17 +19,32 @@ namespace nwii::runtime::hw {
 static uint32_t ipc_arm_msg = 0;
 static uint32_t ipc_arm_ctrl = 0;
 static uint32_t ipc_ppc_ctrl = 0;
+static std::deque<uint32_t> ipc_reply_queue;
 uint32_t ipc_ppc_msg = 0;
+
+namespace {
+constexpr uint32_t IPC_CTRL_X1 = 0x01;
+constexpr uint32_t IPC_CTRL_Y2 = 0x02;
+constexpr uint32_t IPC_CTRL_Y1 = 0x04;
+constexpr uint32_t IPC_CTRL_X2 = 0x08;
+
+void post_next_reply_if_ready() {
+  if (ipc_reply_queue.empty() ||
+      (ipc_ppc_ctrl & (IPC_CTRL_X1 | IPC_CTRL_Y2 | IPC_CTRL_Y1 | IPC_CTRL_X2))) {
+    return;
+  }
+
+  ipc_arm_msg = ipc_reply_queue.front() & 0x1FFFFFFF;
+  ipc_reply_queue.pop_front();
+  ipc_ppc_ctrl |= IPC_CTRL_Y1;
+  g_ipc_interrupt_delay = 50;
+}
+}
 
 extern "C" int32_t handle_ios_ipc(nwii::runtime::CPUContext& ctx, uint32_t request_addr);
 
 int32_t dispatch_ipc(CPUContext& ctx, uint32_t virt_addr) {
-  int32_t result = handle_ios_ipc(ctx, virt_addr);
-
-  ipc_arm_msg  = virt_addr & 0x1FFFFFFF;
-  ipc_arm_ctrl = 0x00000003; 
-  
-  return result;
+  return handle_ios_ipc(ctx, virt_addr);
 }
 
 int32_t ipc_dispatch_request(CPUContext &ctx, uint32_t req_addr) {
@@ -48,10 +65,8 @@ void hle_set_ipc_arm_msg(uint32_t req_addr) {
 
 
 void ipc_post_reply(uint32_t req_addr) {
-  ipc_arm_msg = req_addr & 0x1FFFFFFF;
-  ipc_ppc_ctrl &= ~0x01;
-  ipc_ppc_ctrl |= 0x26; 
-  g_ipc_interrupt_delay = 50;
+  ipc_reply_queue.push_back(req_addr);
+  post_next_reply_if_ready();
 }
 
 void register_ipc(MMIODispatcher& dispatcher) {{
@@ -72,39 +87,32 @@ void register_ipc(MMIODispatcher& dispatcher) {{
                 break;
             }
             case 0x000004: {
-                uint32_t old_ctrl = ipc_ppc_ctrl;
-
                 ipc_ppc_ctrl = (ipc_ppc_ctrl & ~0x30) | (val & 0x30);
 
-                if (val & 0x01) {
+                if (val & IPC_CTRL_Y1) ipc_ppc_ctrl &= ~IPC_CTRL_Y1;
+                if (val & IPC_CTRL_Y2) ipc_ppc_ctrl &= ~IPC_CTRL_Y2;
+                if (val & IPC_CTRL_X2) ipc_ppc_ctrl &= ~IPC_CTRL_X2;
+
+                if (val & IPC_CTRL_X1) {
                     
-                    ipc_ppc_ctrl |= 0x01;
+                    ipc_ppc_ctrl |= IPC_CTRL_X1;
                     int32_t result = 0;
                     if (g_ctx_ptr) {
                         
                         result = ipc_dispatch_request(*g_ctx_ptr, ipc_ppc_msg);
                     }
                     std::cout << "[IPC] Request sent from PPC! result=" << result << "\n";
-                    if (result != -0x70000001) { 
-                        
-                        ipc_ppc_ctrl &= ~0x01;
-                        ipc_ppc_ctrl |= 0x26; 
-                        
-                        g_ipc_interrupt_delay = 50;
-                    } else {
-
-                        
-
-                        ipc_ppc_ctrl &= ~0x01;
-                        ipc_ppc_ctrl |= 0x2C; 
-                        g_ipc_interrupt_delay = 50;
-                    }
+                    // IOS acknowledges every accepted request first.  A
+                    // synchronous result joins the same ordered reply queue
+                    // used by devices that finish asynchronously.
+                    ipc_ppc_ctrl &= ~(IPC_CTRL_X1 | IPC_CTRL_Y1 | IPC_CTRL_X2);
+                    ipc_ppc_ctrl |= IPC_CTRL_Y2;
+                    if (result != IPC_NO_REPLY)
+                        ipc_reply_queue.push_back(ipc_ppc_msg);
+                    g_ipc_interrupt_delay = 50;
                 }
 
-                if (val & 0x04) ipc_ppc_ctrl &= ~0x04; 
-                if (val & 0x02) ipc_ppc_ctrl &= ~0x02; 
-                if (val & 0x08) ipc_ppc_ctrl &= ~0x08; 
-                (void)old_ctrl;
+                post_next_reply_if_ready();
                 break;
             }
 
