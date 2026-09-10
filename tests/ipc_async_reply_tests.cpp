@@ -130,6 +130,29 @@ int main() {
                      kReplyInterruptEnable | kAcknowledgeInterruptEnable,
                      "reply queue drained");
 
+  // A new submission must not consume a reply that Broadway has not read.
+  ipc_post_reply(kFirstRequest);
+  dispatcher.write32(kPpcMessage, 0x13E00100);
+  dispatcher.write32(kPpcControl,
+                     kExecute | kReplyInterruptEnable |
+                         kAcknowledgeInterruptEnable);
+  ok &= expect_equal(dispatcher.read32(kPpcControl),
+                     kReply | kAcknowledge | kReplyInterruptEnable |
+                         kAcknowledgeInterruptEnable,
+                     "new request preserves outstanding reply");
+  ok &= expect_equal(dispatcher.read32(kArmMessage), kFirstRequest,
+                     "outstanding reply address remains visible");
+  dispatcher.write32(kPpcControl,
+                     kAcknowledge | kReplyInterruptEnable |
+                         kAcknowledgeInterruptEnable);
+  ok &= expect_equal(dispatcher.read32(kPpcControl),
+                     kReply | kReplyInterruptEnable |
+                         kAcknowledgeInterruptEnable,
+                     "acknowledging new request preserves old reply");
+  dispatcher.write32(kPpcControl,
+                     kReply | kReplyInterruptEnable |
+                         kAcknowledgeInterruptEnable);
+
   dispatcher.clear();
   g_ctx_ptr = nullptr;
   return ok ? 0 : 1;

@@ -18,7 +18,7 @@ jobs:
         run: cmake --preset windows-msvc-debug
 
       - name: Build boot and real-MMU tests
-        run: cmake --build --preset windows-msvc-debug --target wii_memory_layout_tests nwii_boot_integration_tests
+        run: cmake --build --preset windows-msvc-debug
 
       - name: Run boot and real-MMU tests
         run: ctest --preset windows-msvc-debug

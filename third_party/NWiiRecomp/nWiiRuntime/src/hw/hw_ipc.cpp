@@ -105,7 +105,9 @@ void register_ipc(MMIODispatcher& dispatcher) {{
                     // IOS acknowledges every accepted request first.  A
                     // synchronous result joins the same ordered reply queue
                     // used by devices that finish asynchronously.
-                    ipc_ppc_ctrl &= ~(IPC_CTRL_X1 | IPC_CTRL_Y1 | IPC_CTRL_X2);
+                    // Only Broadway's write-one-to-clear acknowledges a
+                    // presented reply. A new request cannot consume it.
+                    ipc_ppc_ctrl &= ~IPC_CTRL_X1;
                     ipc_ppc_ctrl |= IPC_CTRL_Y2;
                     if (result != IPC_NO_REPLY)
                         ipc_reply_queue.push_back(ipc_ppc_msg);
