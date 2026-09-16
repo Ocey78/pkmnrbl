@@ -101,6 +101,22 @@ They cannot be used as release fixes or counted as a correct title screen.
 The imported runner's source-text-only test was not adopted; the diagnostic
 latch has a behavior test and the real Windows runner has been exercised.
 
+### Multi-stage shader compilation fixed
+
+The real driver rejected the generated two-stage fragment shader: cIn and
+other per-stage variables were redeclared in one scope. A GPU regression
+compiled and linked original synthetic 1/2/16-stage programs: 2 and 16 failed
+before the fix. Each generated stage now has its own lexical scope, while
+the shared TEV result registers remain outside. All three cases pass, and
+the full Windows Release suite passes 10/10. CI runs the shader test when
+an OpenGL 3.3 context is available; return 77 is an explicit skip, not a pass.
+
+The local Windows title was rebuilt and run for 20 seconds without rendering
+overrides. At 15 seconds: 382 submissions, 80772 draws, 3 shaders, GL error
+zero, complete EFB, but still zero nonblack pixels. This fixes the compiler
+failure, not the title screen. Private evidence: build/logs/post-shader-scope.log.
+Next inspect preservation of normal versus constant TEV color register banks.
+
 ## Remaining work for the first usable build
 
 1. Finish renderer isolation; inspect GL errors, shader compile/link logs,

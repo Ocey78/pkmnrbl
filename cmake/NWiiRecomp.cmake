@@ -111,6 +111,12 @@ target_link_libraries(nwiirecomp PRIVATE
     tomlplusplus::tomlplusplus)
 
 if(PKMNRBL_BUILD_BOOT_TESTS)
+    add_executable(tev_shader_gl_tests tests/tev_shader_gl_tests.cpp)
+    target_compile_definitions(tev_shader_gl_tests PRIVATE SDL_MAIN_HANDLED)
+    target_link_libraries(tev_shader_gl_tests PRIVATE nwiiruntime)
+    add_test(NAME tev_shader_gl COMMAND tev_shader_gl_tests)
+    set_tests_properties(tev_shader_gl PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(aot_syscall_fixture tests/aot_syscall_fixture.cpp)
     target_link_libraries(aot_syscall_fixture PRIVATE nwiirecomp_lib)
     set(syscall_fixture "${CMAKE_CURRENT_BINARY_DIR}/aot_syscall_generated.cpp")
