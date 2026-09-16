@@ -608,21 +608,14 @@ static void SetupDrawState(const GXCommand &cmd) {
   };
 
   for (int i = 0; i < 4; i++) {
-    uint32_t ra = g_state.bp[0xE0 + i * 2];
-    uint32_t bg = g_state.bp[0xE1 + i * 2];
-    if (((ra >> 23) & 1) == 0) {
-      color[i * 4 + 0] = decode11(ra, 0);
-      color[i * 4 + 3] = decode11(ra, 12);
-    } else {
-      kcolor[i * 4 + 0] = decode11(ra, 0);
-      kcolor[i * 4 + 3] = decode11(ra, 12);
-    }
-    if (((bg >> 23) & 1) == 0) {
-      color[i * 4 + 2] = decode11(bg, 0);
-      color[i * 4 + 1] = decode11(bg, 12);
-    } else {
-      kcolor[i * 4 + 2] = decode11(bg, 0);
-      kcolor[i * 4 + 1] = decode11(bg, 12);
+    for (unsigned bank = 0; bank < 2; ++bank) {
+      const uint32_t ra = g_state.tevColorRegs[bank][i * 2];
+      const uint32_t bg = g_state.tevColorRegs[bank][i * 2 + 1];
+      float* target = bank == 0 ? color : kcolor;
+      target[i * 4 + 0] = decode11(ra, 0);
+      target[i * 4 + 3] = decode11(ra, 12);
+      target[i * 4 + 2] = decode11(bg, 0);
+      target[i * 4 + 1] = decode11(bg, 12);
     }
   }
 

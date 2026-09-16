@@ -83,7 +83,14 @@ namespace {
 
     void ApplyBPRegisterImpl(uint8_t reg, uint32_t val) {
         g_state.bp[reg] = val;
-        if (reg == 0x00) {
+        if (reg >= 0xE0 && reg <= 0xE7) {
+            const unsigned bank = (val >> 23) & 1;
+            g_state.tevColorRegs[bank][reg - 0xE0] = val;
+            static const bool trace = std::getenv("NWII_TEVTRACE") != nullptr;
+            static unsigned traced = 0;
+            if (trace && traced++ < 64)
+                printf("[TEVWRITE] reg=%02X bank=%u value=%06X\n", reg, bank, val);
+        } else if (reg == 0x00) {
             g_state.numTexGens = (val & 0xF);
             g_state.numChans = ((val >> 4) & 0x7);
             g_state.numTevStages = ((val >> 10) & 0xF) + 1;

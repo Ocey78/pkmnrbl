@@ -73,6 +73,9 @@ struct GXState {
   uint32_t cp[256];
   uint32_t xf[256];
   uint32_t bp[256];
+  // BP E0-E7 are a write port: bit 23 selects regular/constant color storage.
+  // Preserve both banks, including independently written RA and BG halves.
+  uint32_t tevColorRegs[2][8] = {};
 
   
   VATSlot vat[8];

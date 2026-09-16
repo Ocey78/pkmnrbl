@@ -117,12 +117,43 @@ zero, complete EFB, but still zero nonblack pixels. This fixes the compiler
 failure, not the title screen. Private evidence: build/logs/post-shader-scope.log.
 Next inspect preservation of normal versus constant TEV color register banks.
 
+### First visible title-owned output: TEV register banks
+
+BP E0-E7 writes select one of two color banks via bit 23. The renderer used
+only the last write to each address, zeroing the other bank during uniform
+upload. Separate persistent banks now retain both RA and BG halves at ordered
+render-time BP application. The encoding was cross-checked against
+[libogc GX_SetTevColor/GX_SetTevKColor](https://github.com/devkitPro/libogc/blob/master/libogc/gx.c).
+
+An original synthetic triangle goes through the real renderer and GPU. Its
+control pixel was (64,128,192,255); a subsequent constant-bank write incorrectly
+turned it (0,0,0,0) before the fix. Now it stays correct. Additional checks
+cover reverse bank preservation, a partial RA write retaining BG, and signed
+11-bit upload. All 10 Release tests pass locally, including the GPU test.
+
+Rebuilt PokemonRumble.exe and ran WPSE without rendering overrides for 20 and
+55 seconds. The inspected EFB screenshots show a white field with a small
+pale-blue central graphic: first visible title-owned output, NOT a validated
+title screen or playable menu. At 50 seconds: 1180 submissions, 249948 draws,
+5 shaders, 307200/307200 nonblack pixels, complete framebuffer and GL error 0.
+An earlier 20-second run latched 0502 at its first sample, then zero; the
+remaining intermittent GL error still needs localization, not dismissal.
+The picture remains the same in the later screenshot. Private evidence:
+build/logs/post-tev-banks.log, post-tev-banks-long.log and their BMP captures.
+Do not upload those captures or private traces.
+
+Frequent sampling now shows PC 802BC278, LR 802BC26C. Local AOT decoding shows
+a branch while the word at r13-17688 is zero, after calling 802B8CB0. Prove
+which queue/thread owns that wait before treating it as the next blocker;
+other sampled PCs and continuously increasing draw counts show activity.
+
 ## Remaining work for the first usable build
 
-1. Finish renderer isolation; inspect GL errors, shader compile/link logs,
-   actual vertices/projection, TEV/texture state and EFB copy/clear ordering.
-   Write a failing regression for the proven boundary, implement the minimal
-   correction, rebuild and inspect a normal-mode title-owned frame.
+1. Advance beyond the first visible central graphic to a recognizable title
+   screen. Trace guest thread/queue and resource state; inspect rendering
+   only where evidence shows a discrepancy. Localize the intermittent GL
+   error, validate TEV/texture state and EFB copy/clear ordering, and keep
+   using failing regressions followed by real-title runs.
 2. Verify ES content service. Current ES open 09/read 0A/seek 23 return
    success without serving content, and read buffers are zeroed. The launch
    directory contains only main.dol; sibling local/WPSE01_01 contains seven
@@ -152,7 +183,8 @@ The executable is build/windows-release/PokemonRumble.exe; pass
 local/WPSE01_01/extracted as its argument.
 
 Build all test executables before full ctest --preset windows-msvc-release.
-CI builds standalone tests in Debug, then the host and AOT tests in Release.
+CI builds standalone tests in Debug, then host, AOT and GPU tests in Release.
+The GPU test explicitly skips when no OpenGL 3.3 context is available.
 Use tools/Invoke-RendererIsolation.ps1 -Seconds 20 for renderer diagnostics.
 NWII_SAMPLE=1 and NWII_LOOPTRACE=802B4094 add PC/CTR/context evidence.
 All evidence belongs below build/, never GitHub.
