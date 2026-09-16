@@ -1,4 +1,4 @@
-#include "runtime/devices.h"
+﻿#include "runtime/devices.h"
 #include "runtime/ios_kernel.h"
 #include "runtime/config.h"
 #include <iostream>
@@ -42,14 +42,11 @@ public:
                 uint32_t view_len = req.ioctlv_vecs[req.arg_cnt_in].len;
                 if (view_addr != 0 && view_len >= 8) {
                     const std::string& gid = nwii::runtime::Config::get().game_id;
-                    uint32_t title_id_high = 0x00010000;
-                    uint32_t title_id_low = 0;
-                    for (size_t i = 0; i < 4 && i < gid.size(); i++) {
-                        title_id_low |= ((uint32_t)gid[i]) << ((3 - i) * 8);
-                    }
+                    const uint32_t title_id_high = nwii::runtime::kWiiWareTitleIdHigh;
+                    const uint32_t title_id_low = nwii::runtime::pack_game_id(gid);
                     ctx.mmu.write32(view_addr + 0, title_id_high);
                     ctx.mmu.write32(view_addr + 4, title_id_low); 
-                    std::cout << "[ES] Returned Title ID 00010000-" << std::hex << title_id_low << std::dec << " (" << gid << ")\n";
+                    std::cout << "[ES] Returned Title ID " << std::hex << title_id_high << "-" << title_id_low << std::dec << " (" << gid << ")\n";
                 } else {
                     std::cout << "[ES] Warning: ES_GetTitleId output buffer too small (len=" << view_len << ")\n";
                 }
@@ -97,11 +94,8 @@ public:
                 uint32_t view_addr = req.ioctlv_vecs[req.arg_cnt_in].addr;
                 if (view_addr) {
                     const std::string& gid = nwii::runtime::Config::get().game_id;
-                    uint32_t title_id_high = 0x00010000;
-                    uint32_t title_id_low = 0;
-                    for (size_t i = 0; i < 4 && i < gid.size(); i++) {
-                        title_id_low |= ((uint32_t)gid[i]) << ((3 - i) * 8);
-                    }
+                    const uint32_t title_id_high = nwii::runtime::kWiiWareTitleIdHigh;
+                    const uint32_t title_id_low = nwii::runtime::pack_game_id(gid);
                     ctx.mmu.write32(view_addr + 0x0, 0); 
                     ctx.mmu.write32(view_addr + 0x4, 0); 
                     ctx.mmu.write32(view_addr + 0x8, 0); 
@@ -161,3 +155,4 @@ void register_all() {
 }
 
 } 
+

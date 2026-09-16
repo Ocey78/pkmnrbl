@@ -109,3 +109,18 @@ target_link_libraries(nwiirecomp PRIVATE
     pkmnrbl_build_options
     nwiirecomp_lib
     tomlplusplus::tomlplusplus)
+
+if(PKMNRBL_BUILD_BOOT_TESTS)
+    add_executable(aot_syscall_fixture tests/aot_syscall_fixture.cpp)
+    target_link_libraries(aot_syscall_fixture PRIVATE nwiirecomp_lib)
+    set(syscall_fixture "${CMAKE_CURRENT_BINARY_DIR}/aot_syscall_generated.cpp")
+    add_custom_command(OUTPUT "${syscall_fixture}"
+        COMMAND aot_syscall_fixture "${syscall_fixture}"
+        DEPENDS aot_syscall_fixture VERBATIM)
+    add_executable(aot_syscall_tests tests/aot_syscall_tests.cpp "${syscall_fixture}")
+    target_include_directories(aot_syscall_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+    target_compile_features(aot_syscall_tests PRIVATE cxx_std_20)
+    foreach(mode normal interrupt yield)
+        add_test(NAME aot_syscall_${mode} COMMAND aot_syscall_tests ${mode})
+    endforeach()
+endif()

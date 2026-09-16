@@ -1,6 +1,7 @@
 #include "runtime/cpu_context.h"
 #include "runtime/gx/fifo_parser.h"
 #include "runtime/gx/renderer.h"
+#include "runtime/gx/renderer_diagnostics.h"
 #include "runtime/gx/tev_shader_gen.h"
 #include "runtime/gx_state.h"
 #include "runtime/texture_cache_gl.h"
@@ -108,6 +109,12 @@ static void FlushBatch() {
   }
   glDrawArrays(GL_TRIANGLES, 0, s_batch.size());
   static const bool s_gxtrace2 = std::getenv("NWII_GXTRACE") != nullptr;
+  const bool diag_enabled = RendererDiagnosticsEnabled();
+  GLenum draw_error = GL_NO_ERROR;
+  if (diag_enabled)
+    draw_error = glGetError();
+  if (diag_enabled)
+    RendererDiagnosticsRecordGlError(static_cast<uint32_t>(draw_error));
   if (s_gxtrace2) {
     static int en = 0;
     if (en++ < 8) {
@@ -115,7 +122,7 @@ static void FlushBatch() {
       glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
       if (prog)
         glGetProgramiv(prog, GL_LINK_STATUS, &linked);
-      GLenum err = glGetError();
+      GLenum err = diag_enabled ? draw_error : glGetError();
       printf("[GXTRACE] draw: prog=%d linked=%d glErr=0x%x verts=%zu\n", prog,
              linked, err, s_batch.size());
       if (prog && !linked) {
@@ -195,13 +202,15 @@ static bool CurrentIsPerspective() {
 }
 
 static void ApplyZMode() {
-
-  if (CurrentIsPerspective()) {
+  const bool depth_enabled = CurrentIsPerspective();
+  if (depth_enabled) {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
   } else {
     glDisable(GL_DEPTH_TEST);
   }
+  if (RendererDiagnosticsEnabled())
+    RendererDiagnosticsSetDepth(depth_enabled);
 }
 
 // Apply the GX blend state (BP 0x41 = PE_CMODE0). Without it every draw is
@@ -247,13 +256,18 @@ static void ApplyBlend() {
 static void ApplyCullMode() {
   static const bool no_cull = std::getenv("NWII_NOCULL") != nullptr;
   const uint8_t m = g_state.cullMode;
-  if (no_cull || m == 0) {
+  const bool cull_enabled = !no_cull && m != 0;
+  if (!cull_enabled) {
     glDisable(GL_CULL_FACE);
+    if (RendererDiagnosticsEnabled())
+      RendererDiagnosticsSetCull(false, m);
     return;
   }
   glEnable(GL_CULL_FACE);
   glCullFace(m == 3 ? GL_FRONT_AND_BACK : GL_BACK);
   glFrontFace(m == 2 ? GL_CCW : GL_CW);
+  if (RendererDiagnosticsEnabled())
+    RendererDiagnosticsSetCull(true, m);
 }
 
 static void EmitVertex(const VertexData &vtx) {

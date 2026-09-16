@@ -2507,7 +2507,12 @@ void Recompiler::emit_instruction(std::ostream &out,
           << (ppc_inst.simm() << 16) << "; // addis\n";
   } else if (ppc_inst.opcode() == 17) { 
     out << "    // sc (System Call)\n";
-    out << "    nwii::runtime::handle_syscall(ctx);\n";
+    // The runtime can dispatch an interrupt here. Publish the continuation
+    // before entering it; a stale backward-branch PC can restart an exhausted
+    // CTR loop after context restore and wrap its count to UINT32_MAX.
+    out << "    ctx.pc = 0x" << std::hex << std::uppercase
+        << (inst.address + 4) << std::dec << ";\n";
+    out << "    if (nwii::runtime::handle_syscall(ctx)) return;\n";
   } else if (ppc_inst.opcode() == 4) { 
     uint32_t xo = (inst.opcode >> 1) & 0x1F;
     uint32_t xo_10 = (inst.opcode >> 1) & 0x3FF;

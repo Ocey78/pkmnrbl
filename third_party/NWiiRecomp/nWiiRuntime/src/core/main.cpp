@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "runtime/gx_state.h"
+#include "runtime/gx/renderer_diagnostics.h"
 #include "runtime/hw/hw.h"
 
 namespace nwii::runtime {
@@ -111,6 +112,7 @@ int main(int argc, char **argv) {
   SDL_GLContext gl_ctx = nullptr;
   SDL_AudioDeviceID audio_dev = 0;
   GLuint efb_fbo = 0, efb_tex = 0;
+  GLenum efb_status = 0;
   GLuint xfb_tex = 0;
 
   if (!headless) {
@@ -202,9 +204,9 @@ int main(int argc, char **argv) {
     }
     {
       
-      GLenum st = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-      std::cout << "[GL] EFB FBO status: 0x" << std::hex << st << std::dec
-                << (st == GL_FRAMEBUFFER_COMPLETE ? " (complete)" : " (INCOMPLETE!)")
+      efb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+      std::cout << "[GL] EFB FBO status: 0x" << std::hex << efb_status << std::dec
+                << (efb_status == GL_FRAMEBUFFER_COMPLETE ? " (complete)" : " (INCOMPLETE!)")
                 << std::endl;
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -412,6 +414,18 @@ int main(int argc, char **argv) {
 
   std::thread cpu_thread(cpu_thread_func, ctx.get());
 
+  int diagnostic_seconds = 0;
+  if (const char *diagnostic_seconds_env = std::getenv("NWII_DIAG_SECONDS")) {
+    char *end = nullptr;
+    long parsed = std::strtol(diagnostic_seconds_env, &end, 10);
+    if (end != diagnostic_seconds_env && *end == '\0' && parsed > 0 &&
+        parsed <= 3600)
+      diagnostic_seconds = static_cast<int>(parsed);
+  }
+  const auto diagnostic_started = std::chrono::steady_clock::now();
+  if (nwii::runtime::gx::RendererDiagnosticsEnabled())
+    nwii::runtime::gx::RendererDiagnosticsReset();
+
   if (headless) {
     
     uint64_t tick = 0;
@@ -591,6 +605,21 @@ int main(int argc, char **argv) {
           for (size_t i = 0; i < p.size(); i += 4)
             if (p[i] | p[i + 1] | p[i + 2])
               ++nonblack;
+
+          size_t xfb_nonblack = 0;
+          for (size_t i = 0; i + 3 < xfb_px.size(); i += 4)
+            if (xfb_px[i] | xfb_px[i + 1] | xfb_px[i + 2])
+              ++xfb_nonblack;
+
+          if (nwii::runtime::gx::RendererDiagnosticsEnabled())
+            nwii::runtime::gx::RendererDiagnosticsRecordGlError(
+                static_cast<uint32_t>(glGetError()));
+          const auto renderer_diag =
+              nwii::runtime::gx::RendererDiagnosticsTakeSnapshot();
+          const bool alpha_bypass = std::getenv("NWII_NOALPHATEST") != nullptr;
+          const bool color_update =
+              (nwii::runtime::gx::g_state.bp[0x41] & (1u << 3)) != 0;
+
           std::cout << "[STAT] " << ++stat_n * 5 << "s frames=" << std::dec
                     << g_stat_frames << " draws=" << g_stat_draws
                     << " parse_ms=" << g_stat_parse_us / 1000
@@ -633,7 +662,16 @@ int main(int argc, char **argv) {
                     << nwii::runtime::gx::g_state.texStages[0].height << "/f"
                     << (int)nwii::runtime::gx::g_state.texStages[0].format
                     << " texnz=" << tex_nz << "/2048 tlutnz=" << tlut_nz << "/512"
-                    << std::endl;
+                    << " glerr=0x" << std::hex << renderer_diag.first_gl_error
+                    << std::dec << " cull=" << (renderer_diag.cull_enabled ? 1 : 0)
+                    << "/" << static_cast<unsigned>(renderer_diag.cull_mode)
+                    << " depth=" << (renderer_diag.depth_enabled ? 1 : 0)
+                    << " alpha_bypass=" << (alpha_bypass ? 1 : 0)
+                    << " color_update=" << (color_update ? 1 : 0)
+                    << " efb_status=0x" << std::hex << efb_status
+                    << " xfb=0x" << xfb_addr << std::dec << "/" << xw << "x"
+                    << xh << "/" << xstride << " xfb_nonblack=" << xfb_nonblack
+                    << "/" << (xfb_px.size() / 4) << std::endl;
         }
       }
 
@@ -652,7 +690,17 @@ int main(int argc, char **argv) {
 
         if (const char *shot_pfx = std::getenv("NWII_SCREENSHOT")) {
           static int shot_frame = 0;
-          if ((++shot_frame % 300) == 0) {
+          static const int shot_interval = [] {
+            int interval = 300;
+            if (const char *env = std::getenv("NWII_SCREENSHOT_INTERVAL")) {
+              char *end = nullptr;
+              long parsed = std::strtol(env, &end, 10);
+              if (end != env && *end == '\0' && parsed > 0 && parsed <= 100000)
+                interval = static_cast<int>(parsed);
+            }
+            return interval;
+          }();
+          if ((++shot_frame % shot_interval) == 0) {
             std::vector<unsigned char> px(640 * 480 * 4);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, efb_fbo);
             glReadPixels(0, 0, 640, 480, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
@@ -666,7 +714,11 @@ int main(int argc, char **argv) {
             if (s) {
               std::string p = std::string(shot_pfx) + "_" +
                               std::to_string(shot_frame) + ".bmp";
-              SDL_SaveBMP(s, p.c_str());
+              if (SDL_SaveBMP(s, p.c_str()) == 0)
+                std::cout << "[SHOT] path=" << p << std::endl;
+              else
+                std::cerr << "[SHOT] failed path=" << p
+                          << " error=" << SDL_GetError() << std::endl;
               SDL_FreeSurface(s);
             }
             glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -686,6 +738,16 @@ int main(int argc, char **argv) {
       
       ctx->vblank_pending = true;
       if (headless) std::this_thread::sleep_for(std::chrono::milliseconds(16));
+
+      if (diagnostic_seconds > 0 &&
+          std::chrono::duration_cast<std::chrono::seconds>(
+              std::chrono::steady_clock::now() - diagnostic_started)
+                  .count() >= diagnostic_seconds) {
+        std::cout << "[DIAG] auto-exit after " << diagnostic_seconds
+                  << " seconds" << std::endl;
+        ctx->is_running = false;
+        quit = true;
+      }
     }
 
     if (!headless) {

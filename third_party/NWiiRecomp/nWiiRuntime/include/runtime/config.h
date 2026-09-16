@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 #include <string>
 #include <vector>
 #include <cstdint>
+#include "runtime/title_identity.h"
 
 namespace nwii {
 namespace runtime {
@@ -56,7 +57,7 @@ public:
 
     
     
-    std::string game_id = "RSZK";
+    std::string game_id = std::string(kPokemonRumbleGameId);
 
     
 
@@ -79,3 +80,4 @@ private:
 
 } 
 } 
+

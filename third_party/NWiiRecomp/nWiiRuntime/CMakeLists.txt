@@ -40,6 +40,7 @@ add_library(nwiiruntime STATIC
     src/hle/gx/gx_state_seam.cpp
     src/hle/gx/gx_state_seam.cpp
     src/hle/gx/renderer_gl.cpp
+    src/hle/gx/renderer_diagnostics.cpp
     src/hle/gx/renderer_factory.cpp
     src/hle/gx/tev_shader_gen.cpp
     src/hle/texture_cache_gl.cpp

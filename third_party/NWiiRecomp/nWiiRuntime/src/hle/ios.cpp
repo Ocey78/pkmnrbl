@@ -822,7 +822,11 @@ bool process_pending_callbacks(CPUContext &ctx) {
                   << hits << " r3=0x" << std::hex << ctx.gpr[3] << " r4=0x"
                   << ctx.gpr[4] << " r5=0x" << ctx.gpr[5] << " r30=0x"
                   << ctx.gpr[30] << " r31=0x" << ctx.gpr[31] << " lr=0x"
-                  << ctx.lr << std::dec << "\n";
+                  << ctx.lr << " ctr=0x" << ctx.ctr
+                  << " r28=0x" << ctx.gpr[28] << " r29=0x" << ctx.gpr[29]
+                  << " context=0x" << ctx.mmu.read32(0x800000D4)
+                  << " dispatch=0x" << ctx.dispatch_saved_ctx
+                  << std::dec << "\n";
     }
   }
 

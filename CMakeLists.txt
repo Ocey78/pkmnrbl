@@ -52,6 +52,29 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
     target_compile_features(ipc_async_reply_tests PRIVATE cxx_std_20)
     add_test(NAME ipc_async_reply COMMAND ipc_async_reply_tests)
+
+    add_executable(title_identity_tests tests/title_identity_tests.cpp)
+    target_include_directories(title_identity_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(title_identity_tests PRIVATE cxx_std_20)
+    add_test(NAME title_identity COMMAND title_identity_tests)
+    add_executable(ai_mmio_tests
+        tests/ai_mmio_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ai.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/mmio_dispatcher.cpp)
+    target_include_directories(ai_mmio_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(ai_mmio_tests PRIVATE cxx_std_20)
+    add_test(NAME ai_mmio COMMAND ai_mmio_tests)
+
+    add_executable(renderer_diagnostics_tests
+        tests/renderer_diagnostics_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/gx/renderer_diagnostics.cpp)
+    target_include_directories(renderer_diagnostics_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(renderer_diagnostics_tests PRIVATE cxx_std_20)
+    add_test(NAME renderer_diagnostics COMMAND renderer_diagnostics_tests)
+
 endif()
 
 add_library(pkmnrbl_build_options INTERFACE)

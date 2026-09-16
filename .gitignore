@@ -56,3 +56,11 @@ Testing/
 .env.*
 *.local
 /config/local/
+
+# Local continuation diagnostics and backups can contain title-derived data.
+/.pkmnrbl-tools/
+/*-trace.txt
+/next-blocker-diagnostic.txt
+/PKMNRBL_CODEX_CONTINUATION_*.zip
+/PKMNRBL_CODEX_CONTINUATION_*.txt
+*.pre-pkmnrbl-*

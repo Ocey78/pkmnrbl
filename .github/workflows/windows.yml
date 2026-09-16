@@ -27,7 +27,10 @@ jobs:
         run: cmake --preset windows-msvc-release
 
       - name: Build redistributable host and runtime targets
-        run: cmake --build --preset windows-msvc-release --target nwiirecomp nwiiruntime
+        run: cmake --build --preset windows-msvc-release --target nwiirecomp nwiiruntime aot_syscall_tests
+
+      - name: Run synthetic AOT syscall continuation regressions
+        run: ctest --preset windows-msvc-release -R aot_syscall
 
       - name: Run generated-project regression without title data
         shell: pwsh
