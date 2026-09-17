@@ -171,8 +171,10 @@ real Windows title relinked. A 25-second run preserved the central graphic:
 at 20 seconds, 535 submissions, 113208 draws, 3 shaders, complete EFB, GL error 0.
 Captured fallback samples now show 8012B740 rather than 802B8CEC/802B8CBC.
 8012B740 is absent from the discovered function list; its caller at 801E1514
-uses an indirect call through a vtable slot at +20. Investigate that coverage
-gap next. Do not disable the interpreter or claim interpreter-free execution.
+uses an indirect call through a vtable slot at +20. Local DOL decoding identifies
+8012B740 as a static branch stub targeting the already translated 801E78A0,
+not dynamically generated code. Investigate that discovery gap next with a
+failing regression. Do not disable the interpreter or claim interpreter-free execution.
 Private evidence: build/logs/post-aot-resume.log and associated captures.
 
 GitHub runs for 0d779f4 and 9ce14c4 built successfully but crashed in the GPU
@@ -183,7 +185,12 @@ The test now requires the loaded GL 3.3 capability before any shader call.
 A real-GLAD/synthetic-legacy-driver regression failed before the guard and passes
 after it. Unsupported GPU contexts return explicit skip 77, never a GPU pass.
 Current local Release suite: 13/13 passing, including real GPU execution.
-Remote CI confirmation for these latest fixes remains pending.
+GitHub Windows CI run 35180854096 for f89802b completed successfully on
+2026-09-17, including the synthetic AOT/GPU test step, generated-project
+regression and repository policy tests:
+https://github.com/Ocey78/pkmnrbl/actions/runs/35180854096
+The public job status does not distinguish a GPU test pass from an unsupported
+context skip; real GPU execution is verified locally, not asserted for CI.
 
 ### Work still required
 
