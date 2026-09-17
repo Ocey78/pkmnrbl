@@ -117,6 +117,8 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
 
     add_executable(aot_resume_fixture tests/aot_resume_fixture.cpp)
     target_link_libraries(aot_resume_fixture PRIVATE nwiirecomp_lib)
+    add_executable(aot_title_roots_fixture tests/aot_title_roots_fixture.cpp)
+    target_link_libraries(aot_title_roots_fixture PRIVATE nwiirecomp_lib tomlplusplus::tomlplusplus)
     foreach(layout split single)
         set(resume_dir "${CMAKE_CURRENT_BINARY_DIR}/aot_resume_${layout}")
         if(layout STREQUAL "split")
@@ -131,6 +133,23 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
         target_include_directories(aot_resume_${layout}_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
         target_compile_features(aot_resume_${layout}_tests PRIVATE cxx_std_20)
         add_test(NAME aot_resume_${layout} COMMAND aot_resume_${layout}_tests)
+
+        set(roots_dir "${CMAKE_CURRENT_BINARY_DIR}/aot_title_roots_${layout}")
+        if(layout STREQUAL "split")
+            set(roots_sources "${roots_dir}/main_output.cpp" "${roots_dir}/output_0.cpp")
+        else()
+            set(roots_sources "${roots_dir}/output.cpp")
+        endif()
+        add_custom_command(OUTPUT ${roots_sources}
+            COMMAND aot_title_roots_fixture "${roots_dir}" ${layout} config/WPSE01_01/recomp.toml
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            DEPENDS aot_title_roots_fixture "${CMAKE_CURRENT_SOURCE_DIR}/config/WPSE01_01/recomp.toml"
+                "${CMAKE_CURRENT_SOURCE_DIR}/config/WPSE01_01/aot_roots.csv"
+            VERBATIM)
+        add_executable(aot_title_roots_${layout}_tests tests/aot_title_roots_tests.cpp ${roots_sources})
+        target_include_directories(aot_title_roots_${layout}_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+        target_compile_features(aot_title_roots_${layout}_tests PRIVATE cxx_std_20)
+        add_test(NAME aot_title_roots_${layout} COMMAND aot_title_roots_${layout}_tests)
     endforeach()
 
     add_executable(tev_shader_gl_tests tests/tev_shader_gl_tests.cpp)

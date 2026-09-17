@@ -27,10 +27,10 @@ jobs:
         run: cmake --preset windows-msvc-release
 
       - name: Build redistributable host and runtime targets
-        run: cmake --build --preset windows-msvc-release --target nwiirecomp nwiiruntime aot_syscall_tests aot_resume_split_tests aot_resume_single_tests gl_test_context_tests tev_shader_gl_tests
+        run: cmake --build --preset windows-msvc-release --target nwiirecomp nwiiruntime aot_syscall_tests aot_resume_split_tests aot_resume_single_tests aot_title_roots_split_tests aot_title_roots_single_tests gl_test_context_tests tev_shader_gl_tests
 
       - name: Run synthetic AOT and GPU shader regressions
-        run: ctest --preset windows-msvc-release -R "aot_syscall|aot_resume|gl_test_context|tev_shader_gl"
+        run: ctest --preset windows-msvc-release -R "aot_syscall|aot_resume|aot_title_roots|gl_test_context|tev_shader_gl"
 
       - name: Run generated-project regression without title data
         shell: pwsh

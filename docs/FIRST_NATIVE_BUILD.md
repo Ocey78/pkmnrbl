@@ -194,6 +194,18 @@ context skip; real GPU execution is verified locally, not asserted for CI.
 
 ### Work still required
 
+Latest AOT discovery milestone (2026-09-17): the existing `symbols_csv` mechanism
+now loads `config/WPSE01_01/aot_roots.csv`, containing the manually identified
+8012B740 entry point. This is address metadata, not copied game code. Regeneration
+discovers 14374 functions and emits a native branch to the existing 801E78A0
+function. No general heuristic or interpreter behavior was changed.
+Synthetic tests load the real title configuration and execute an indirectly
+entered branch stub through both emitted dispatcher layouts. Without the root,
+split output reached the interpreter and single output rejected unknown dispatch.
+With the root, both execute the target exactly once and preserve LR. All 15 local
+Release tests pass; generated-project, native-build-script and policy tests pass.
+The real-title rebuild/run and remote CI for this milestone are still pending.
+
 1. Advance beyond the first visible central graphic to a recognizable title
    screen. Trace guest thread/queue and resource state; inspect rendering
    only where evidence shows a discrepancy. Localize the intermittent GL
