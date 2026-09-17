@@ -1,6 +1,6 @@
 # First native build: status and remaining work
 
-Updated 2026-09-16. Nintendo files, generated title code, private traces and
+Updated 2026-09-17. Nintendo files, generated title code, private traces and
 the locally linked game executable must never be uploaded.
 
 ## Fixed architecture and identity
@@ -149,6 +149,44 @@ other sampled PCs and continuously increasing draw counts show activity.
 
 ## Remaining work for the first usable build
 
+### Additional verified continuation and CI work
+
+The recurring interpreter entry 802B8CEC has native instructions already.
+An mtmsr enabling interrupts publishes its successor, but the dispatcher
+did not explicitly register that successor. Range fallback chose the earlier
+sparse function 80250B00, whose broad bounds contain 802B8CEC but whose actual
+instruction set does not. Its local dispatch consequently invoked the interpreter.
+Both emitter layouts now register mtmsr successors as exact AOT continuations.
+
+A synthetic executable processed by the real analyzer creates the same sparse
+overlap. The compiled split dispatcher failed by invoking the interpreter
+before the change; split and single layouts now resume and execute the successor
+once. Compiling the single layout also uncovered an existing unclosed try block;
+its dispatcher now uses the same balanced setjmp guard as the split layout.
+The regression uses callback yield, not an independent longjmp stress test.
+
+All 14373 local functions were regenerated in an ignored staging directory.
+Hash comparison found only main_output.cpp changed; it was installed and the
+real Windows title relinked. A 25-second run preserved the central graphic:
+at 20 seconds, 535 submissions, 113208 draws, 3 shaders, complete EFB, GL error 0.
+Captured fallback samples now show 8012B740 rather than 802B8CEC/802B8CBC.
+8012B740 is absent from the discovered function list; its caller at 801E1514
+uses an indirect call through a vtable slot at +20. Investigate that coverage
+gap next. Do not disable the interpreter or claim interpreter-free execution.
+Private evidence: build/logs/post-aot-resume.log and associated captures.
+
+GitHub runs for 0d779f4 and 9ce14c4 built successfully but crashed in the GPU
+test; their AOT tests passed. The supplied CI log showed a GPU-test segfault.
+Bundled SDL can return its legacy WGL context when 3.x creation is unavailable;
+GLAD accepts a valid 1.1 version string, leaving shader function pointers null.
+The test now requires the loaded GL 3.3 capability before any shader call.
+A real-GLAD/synthetic-legacy-driver regression failed before the guard and passes
+after it. Unsupported GPU contexts return explicit skip 77, never a GPU pass.
+Current local Release suite: 13/13 passing, including real GPU execution.
+Remote CI confirmation for these latest fixes remains pending.
+
+### Work still required
+
 1. Advance beyond the first visible central graphic to a recognizable title
    screen. Trace guest thread/queue and resource state; inspect rendering
    only where evidence shows a discrepancy. Localize the intermittent GL
@@ -165,7 +203,8 @@ other sampled PCs and continuously increasing draw counts show activity.
    recur. Keep PC/LR/CTR/context ownership and rendering evidence.
 4. Connect and verify one native input source through the title's actual Wii
    input path. Require navigation of the first menu; HCI startup is not input.
-5. Investigate fallback at 802B8CEC and 802B8CBC, plus any new fallback sites.
+5. Investigate fallback at 8012B740 and any new sites; monitor the corrected
+   802B8CEC/802B8CBC continuations for recurrence.
    Supply missing AOT/native coverage. Audit fallback syscall continuation
    separately; the current fix is in the AOT emitter. Build and run with
    PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF before calling it release-ready.

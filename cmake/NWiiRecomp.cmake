@@ -111,6 +111,28 @@ target_link_libraries(nwiirecomp PRIVATE
     tomlplusplus::tomlplusplus)
 
 if(PKMNRBL_BUILD_BOOT_TESTS)
+    add_executable(gl_test_context_tests tests/gl_test_context_tests.cpp)
+    target_link_libraries(gl_test_context_tests PRIVATE glad)
+    add_test(NAME gl_test_context COMMAND gl_test_context_tests)
+
+    add_executable(aot_resume_fixture tests/aot_resume_fixture.cpp)
+    target_link_libraries(aot_resume_fixture PRIVATE nwiirecomp_lib)
+    foreach(layout split single)
+        set(resume_dir "${CMAKE_CURRENT_BINARY_DIR}/aot_resume_${layout}")
+        if(layout STREQUAL "split")
+            set(resume_sources "${resume_dir}/main_output.cpp" "${resume_dir}/output_0.cpp")
+        else()
+            set(resume_sources "${resume_dir}/output.cpp")
+        endif()
+        add_custom_command(OUTPUT ${resume_sources}
+            COMMAND aot_resume_fixture "${resume_dir}" ${layout}
+            DEPENDS aot_resume_fixture VERBATIM)
+        add_executable(aot_resume_${layout}_tests tests/aot_resume_tests.cpp ${resume_sources})
+        target_include_directories(aot_resume_${layout}_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+        target_compile_features(aot_resume_${layout}_tests PRIVATE cxx_std_20)
+        add_test(NAME aot_resume_${layout} COMMAND aot_resume_${layout}_tests)
+    endforeach()
+
     add_executable(tev_shader_gl_tests tests/tev_shader_gl_tests.cpp)
     target_compile_definitions(tev_shader_gl_tests PRIVATE SDL_MAIN_HANDLED)
     target_link_libraries(tev_shader_gl_tests PRIVATE nwiiruntime)

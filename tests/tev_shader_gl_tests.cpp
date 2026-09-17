@@ -1,6 +1,7 @@
 #include "runtime/gx/tev_shader_gen.h"
 #include "runtime/gx/renderer.h"
 #include "runtime/cpu_context.h"
+#include "gl_test_context.h"
 #include <SDL.h>
 #include <glad/glad.h>
 #include <cmath>
@@ -136,12 +137,14 @@ int main() {
         SDL_Quit(); return 77;
     }
     auto context = SDL_GL_CreateContext(window);
-    if (!context || !gladLoadGLLoader(SDL_GL_GetProcAddress)) {
-        std::cout << "SKIP: OpenGL 3.3 unavailable: " << SDL_GetError() << '\n';
+    if (!context || !LoadShaderTestGL(SDL_GL_GetProcAddress)) {
+        std::cout << "SKIP: OpenGL 3.3 unavailable (loaded " << GLVersion.major
+                  << '.' << GLVersion.minor << "): " << SDL_GetError() << '\n';
         if (context) SDL_GL_DeleteContext(context);
         SDL_DestroyWindow(window); SDL_Quit(); return 77;
     }
     bool passed = true;
+    std::cout << "GPU test: OpenGL " << GLVersion.major << '.' << GLVersion.minor << std::endl;
     for (unsigned count : {1u, 2u, 16u}) {
         nwii::runtime::gx::GXState state{};
         state.numTevStages = static_cast<uint8_t>(count);

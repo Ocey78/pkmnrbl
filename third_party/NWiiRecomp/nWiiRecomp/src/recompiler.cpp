@@ -404,7 +404,10 @@ std::vector<std::string> Recompiler::generate_cpp(uint32_t entry_point) {
       if (!is_hle) {
         for (const auto &inst : func.instructions) {
           ppc::Instruction ppc_inst(inst.opcode);
-          if (ppc_inst.is_branch_link() || ppc_inst.opcode() == 17) {
+          // mtmsr can yield after enabling interrupts. Its successor must
+          // dispatch to this exact AOT body, not an overlapping range's hole.
+          if (ppc_inst.is_branch_link() || ppc_inst.opcode() == 17 ||
+              (ppc_inst.opcode() == 31 && ppc_inst.extended_opcode() == 146)) {
             uint32_t ret_addr = inst.address + 4;
             if (emitted_cases.insert(ret_addr).second) {
               out << "            case 0x" << std::hex << std::uppercase
@@ -657,7 +660,7 @@ std::vector<std::string> Recompiler::generate_cpp(uint32_t entry_point) {
            "          }\n"
            "          continue;\n"
            "      }\n";
-    out << "      try {\n";
+    out << "      if (setjmp(ctx.exception_jmp_buf) == 0) {\n";
     out << "        process_pending_callbacks(ctx);\n";
     out << "        if (ctx.pc == 0xFFFFFFFC) {\n";
     out << "            if (!ctx.backup_stack.empty()) {\n";
@@ -715,7 +718,9 @@ std::vector<std::string> Recompiler::generate_cpp(uint32_t entry_point) {
       if (!is_hle) {
         for (const auto &inst : func.instructions) {
           ppc::Instruction ppc_inst(inst.opcode);
-          if (ppc_inst.is_branch_link() || ppc_inst.opcode() == 17) {
+          // Match the split dispatcher at interrupt-enabling boundaries.
+          if (ppc_inst.is_branch_link() || ppc_inst.opcode() == 17 ||
+              (ppc_inst.opcode() == 31 && ppc_inst.extended_opcode() == 146)) {
             uint32_t ret_addr = inst.address + 4;
             if (emitted_cases.insert(ret_addr).second) {
               out << "            case 0x" << std::hex << std::uppercase
@@ -766,6 +771,9 @@ std::vector<std::string> Recompiler::generate_cpp(uint32_t entry_point) {
     out << "                if (!found) std::exit(1);\n";
     out << "            }\n";
     out << "        }\n";
+    out << "      } else {\n";
+    out << "          continue;\n";
+    out << "      }\n";
     out << "    }\n";
     out << "    std::cout << \"[DEBUG] PC History before 0x0:\\n\";\n";
     out << "    for (int i=0; i<10; ++i) {\n";
