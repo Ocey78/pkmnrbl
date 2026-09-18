@@ -728,7 +728,8 @@ public:
         }
         if (touched_proj) {
           g_state.projSet = true;
-          ApplyProjection(s_active_shader.uProjMtx);
+          // SetupDrawState uploads this after binding the next draw's shader.
+          // XF state can arrive before any program exists.
         }
       } else if (cmd.type == GXCommandType::BPRegister) {
         ApplyBPRegister((uint8_t)cmd.reg, cmd.val);

@@ -5,6 +5,7 @@
 #include <SDL.h>
 #include <glad/glad.h>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 namespace nwii::runtime {
@@ -16,12 +17,31 @@ static bool color_bank_regression() {
     using namespace nwii::runtime::gx;
     auto reset = std::make_unique<GXState>();
     g_state = *reset;
-    g_state.projSet = true;
-    g_state.projType = 1;
-    g_state.projection[0] = g_state.projection[2] = g_state.projection[4] = 1;
     auto renderer = IRenderer::Create();
     renderer->Initialize(nullptr);
     std::vector<GXCommand> commands;
+    GXCommand projection{};
+    projection.type = GXCommandType::XFRegister;
+    projection.reg = 0x1020;
+    projection.payload = {0.5f, 0, 0.5f, 0, 1, 0, 0};
+    const uint32_t orthographic = 1;
+    std::memcpy(&projection.payload[6], &orthographic, sizeof(orthographic));
+    // The title submits projection state before its first draw/program exists.
+    // It must be retained now and uploaded only after binding the draw's shader.
+    glUseProgram(0);
+    if (glGetError() != GL_NO_ERROR) {
+        std::cerr << "FAIL: dirty GL state before projection regression\n";
+        return false;
+    }
+    renderer->Render({projection});
+    if (glGetError() != GL_NO_ERROR) {
+        std::cerr << "FAIL: projection before first shader caused GL error\n";
+        return false;
+    }
+    if (!g_state.projSet || g_state.projType != 1 || g_state.projection[0] != 0.5f) {
+        std::cerr << "FAIL: projection state was not retained before first draw\n";
+        return false;
+    }
     auto bp = [&](uint8_t reg, uint32_t value) {
         GXCommand command{};
         command.type = GXCommandType::BPRegister;
@@ -53,6 +73,11 @@ static bool color_bank_regression() {
     glReadPixels(16, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
     if (pixel[0] != 64 || pixel[1] != 128 || pixel[2] != 192 || pixel[3] != 255) {
         std::cerr << "FAIL: regular-bank control draw\n";
+        return false;
+    }
+    glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+    if (pixel[0] || pixel[1] || pixel[2] || pixel[3]) {
+        std::cerr << "FAIL: first draw did not apply the pending scaled projection\n";
         return false;
     }
     commands.clear();
