@@ -111,6 +111,10 @@ target_link_libraries(nwiirecomp PRIVATE
     tomlplusplus::tomlplusplus)
 
 if(PKMNRBL_BUILD_BOOT_TESTS)
+    add_test(NAME nwii_runtime_sources
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPKMNRBL_NWII_RUNTIME_DIR=${PKMNRBL_NWII_ROOT}/nWiiRuntime"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/nwii_runtime_sources.Tests.cmake")
     add_executable(gl_test_context_tests tests/gl_test_context_tests.cpp)
     target_link_libraries(gl_test_context_tests PRIVATE glad)
     add_test(NAME gl_test_context COMMAND gl_test_context_tests)
@@ -119,6 +123,15 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_link_libraries(aot_resume_fixture PRIVATE nwiirecomp_lib)
     add_executable(aot_title_roots_fixture tests/aot_title_roots_fixture.cpp)
     target_link_libraries(aot_title_roots_fixture PRIVATE nwiirecomp_lib tomlplusplus::tomlplusplus)
+    add_executable(native_only_fixture tests/native_only_fixture.cpp)
+    target_link_libraries(native_only_fixture PRIVATE nwiirecomp_lib)
+    set(native_only_micro_source "${CMAKE_CURRENT_BINARY_DIR}/native_only_micro_generated.cpp")
+    add_custom_command(OUTPUT "${native_only_micro_source}"
+        COMMAND native_only_fixture "${native_only_micro_source}"
+        DEPENDS native_only_fixture VERBATIM)
+    # Each shared output has one generation owner; all compiling consumers
+    # wait for it so parallel builds cannot regenerate files during a compile.
+    add_custom_target(native_only_micro_generated DEPENDS "${native_only_micro_source}")
     foreach(layout split single)
         set(resume_dir "${CMAKE_CURRENT_BINARY_DIR}/aot_resume_${layout}")
         if(layout STREQUAL "split")
@@ -129,10 +142,28 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
         add_custom_command(OUTPUT ${resume_sources}
             COMMAND aot_resume_fixture "${resume_dir}" ${layout}
             DEPENDS aot_resume_fixture VERBATIM)
+        add_custom_target(aot_resume_${layout}_generated DEPENDS ${resume_sources})
         add_executable(aot_resume_${layout}_tests tests/aot_resume_tests.cpp ${resume_sources})
+        add_dependencies(aot_resume_${layout}_tests aot_resume_${layout}_generated)
         target_include_directories(aot_resume_${layout}_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
         target_compile_features(aot_resume_${layout}_tests PRIVATE cxx_std_20)
         add_test(NAME aot_resume_${layout} COMMAND aot_resume_${layout}_tests)
+
+        add_executable(native_only_${layout}_tests tests/native_only_tests.cpp
+            ${resume_sources} "${native_only_micro_source}"
+            "${PKMNRBL_NWII_ROOT}/nWiiRuntime/src/core/native_only.cpp")
+        add_dependencies(native_only_${layout}_tests
+            aot_resume_${layout}_generated native_only_micro_generated)
+        target_include_directories(native_only_${layout}_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+        target_compile_features(native_only_${layout}_tests PRIVATE cxx_std_20)
+        add_test(NAME native_only_${layout}_covered COMMAND native_only_${layout}_tests)
+        foreach(mode step micro)
+            add_test(NAME native_only_${layout}_${mode}
+                COMMAND "${CMAKE_COMMAND}"
+                    "-DTEST_EXECUTABLE=$<TARGET_FILE:native_only_${layout}_tests>"
+                    "-DTEST_MODE=${mode}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/native_only_failfast.Tests.cmake")
+        endforeach()
 
         set(roots_dir "${CMAKE_CURRENT_BINARY_DIR}/aot_title_roots_${layout}")
         if(layout STREQUAL "split")

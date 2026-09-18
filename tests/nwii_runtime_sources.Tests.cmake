@@ -12,6 +12,12 @@ if(NOT interpreter_source_index EQUAL -1)
     message(FATAL_ERROR "Default nwiiruntime source selection includes the prohibited PPC interpreter: ${interpreter_source}")
 endif()
 
+set(native_only_source "${PKMNRBL_NWII_RUNTIME_DIR}/src/core/native_only.cpp")
+list(FIND nwii_runtime_sources "${native_only_source}" native_only_source_index)
+if(NOT native_only_source_index EQUAL -1)
+    message(FATAL_ERROR "Default nwiiruntime source selection must not force native-only guards into interpreter-ON builds: ${native_only_source}")
+endif()
+
 set(required_runtime_source "${PKMNRBL_NWII_RUNTIME_DIR}/src/core/loader.cpp")
 list(FIND nwii_runtime_sources "${required_runtime_source}" required_runtime_source_index)
 if(required_runtime_source_index EQUAL -1)

@@ -932,6 +932,9 @@ bool Recompiler::generate_cmake_project(uint32_t entry_point) {
   out << "if(PKMNRBL_ENABLE_BRINGUP_INTERPRETER)\n";
   out << "  target_sources(" << config_.project_name
       << " PRIVATE nWiiRuntime/src/hle/interpreter.cpp)\n";
+  out << "else()\n";
+  out << "  target_sources(" << config_.project_name
+      << " PRIVATE nWiiRuntime/src/core/native_only.cpp)\n";
   out << "endif()\n";
   out << "target_compile_definitions(" << config_.project_name
       << " PRIVATE SDL_MAIN_HANDLED)\n";

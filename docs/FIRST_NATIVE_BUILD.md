@@ -184,7 +184,7 @@ GLAD accepts a valid 1.1 version string, leaving shader function pointers null.
 The test now requires the loaded GL 3.3 capability before any shader call.
 A real-GLAD/synthetic-legacy-driver regression failed before the guard and passes
 after it. Unsupported GPU contexts return explicit skip 77, never a GPU pass.
-Current local Release suite: 13/13 passing, including real GPU execution.
+At that milestone the local Release suite passed 13/13, including real GPU execution.
 GitHub Windows CI run 35180854096 for f89802b completed successfully on
 2026-09-17, including the synthetic AOT/GPU test step, generated-project
 regression and repository policy tests:
@@ -192,7 +192,7 @@ https://github.com/Ocey78/pkmnrbl/actions/runs/35180854096
 The public job status does not distinguish a GPU test pass from an unsupported
 context skip; real GPU execution is verified locally, not asserted for CI.
 
-### Work still required
+### AOT root and projection verification
 
 Latest AOT discovery milestone (2026-09-17): the existing `symbols_csv` mechanism
 now loads `config/WPSE01_01/aot_roots.csv`, containing the manually identified
@@ -204,12 +204,59 @@ entered branch stub through both emitted dispatcher layouts. Without the root,
 split output reached the interpreter and single output rejected unknown dispatch.
 With the root, both execute the target exactly once and preserve LR. All 15 local
 Release tests pass; generated-project, native-build-script and policy tests pass.
-The real-title rebuild/run and remote CI for this milestone are still pending.
+GitHub CI for 94c80b1 passed: https://github.com/Ocey78/pkmnrbl/actions/runs/35186161112
+The real title rebuilt successfully and completed a 25-second run with no
+`[Interp]` entry messages (private evidence: build/logs/post-title-root.log).
+At 20 seconds it had 497 submissions, 105152 draws and 3 shaders. This log does
+not prove that unlogged single-instruction `micro_interpret` calls were avoided.
+
+The remaining early GL 0502 was localized to XF projection state arriving before
+the first shader. The renderer eagerly uploaded to zero-initialized uniform
+location 0 without a bound program. A real-GPU regression reproduced the error.
+Projection uploads now occur only in SetupDrawState, after the program is bound;
+XF commands still flush the preceding batch and retain the next projection.
+A 25-second rebuilt-title run reports GL error 0 in all four samples, with
+491 submissions, 103880 draws and 6 shaders at 20 seconds. The captured image is
+still the white field and small central graphic, not the title screen.
+Private evidence: build/logs/post-projection.log and post-projection_2400.bmp.
+
+### Verified interpreter-OFF boot
+
+The generated project's OFF setting previously failed to link: the loader still
+needed add_recompiled_range, and generated code still referenced interpret_step
+and micro_interpret. A native-only source now supplies diagnostic failure guards
+instead of a PPC interpreter. Uncovered code or unsupported instructions print
+PC/LR/CTR (and the supplied opcode for a micro fallback), then exit with failure.
+No guest instruction is interpreted. Text-range registration is a no-op in this
+mode; interpreter-ON builds retain their original implementation.
+
+Real generated synthetic code reproduced the missing symbols before the fix.
+Both output layouts now link and execute a covered continuation; subprocess
+regressions verify failure on an uncovered PC and on a reserved instruction,
+including its explicit instruction address when ctx.pc is stale. All 22 local
+Release tests pass, including actual GPU rendering and the scaled-projection
+pixel check. Export and repository-policy checks also pass.
+
+The local generated project was configured with
+`-DPKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF` and rebuilt successfully. Its MSVC
+project selects native_only.cpp and does not compile interpreter.cpp. A real
+25-second WPSE01_01 run exited 0 on its diagnostic deadline with no AOT guard
+failure: 484 submissions, 102396 draws and 3 shaders at 20 seconds; GL error 0
+in every sample. The image remains the initial central graphic. This proves
+interpreter-free execution of this bounded boot path, not full gameplay coverage
+or release readiness. Private evidence: build/logs/native-only-title.log,
+native-only-title.err and native-only-title_2400.bmp.
+A second 55-second interpreter-OFF run also exited 0 with empty stderr, no
+coverage trap and GL error 0 in all samples. At 50 seconds: 1341 submissions,
+284080 draws and 3 shaders. The graphic remained unchanged. Private evidence:
+build/logs/native-only-long.log, native-only-long.err and native-only-long_4800.bmp.
+
+### Work still required
 
 1. Advance beyond the first visible central graphic to a recognizable title
    screen. Trace guest thread/queue and resource state; inspect rendering
-   only where evidence shows a discrepancy. Localize the intermittent GL
-   error, validate TEV/texture state and EFB copy/clear ordering, and keep
+   only where evidence shows a discrepancy. Monitor for new GL errors,
+   validate TEV/texture state and EFB copy/clear ordering, and keep
    using failing regressions followed by real-title runs.
 2. Verify ES content service. Current ES open 09/read 0A/seek 23 return
    success without serving content, and read buffers are zeroed. The launch
@@ -222,11 +269,11 @@ The real-title rebuild/run and remote CI for this milestone are still pending.
    recur. Keep PC/LR/CTR/context ownership and rendering evidence.
 4. Connect and verify one native input source through the title's actual Wii
    input path. Require navigation of the first menu; HCI startup is not input.
-5. Investigate fallback at 8012B740 and any new sites; monitor the corrected
-   802B8CEC/802B8CBC continuations for recurrence.
+5. Monitor the corrected 8012B740 entry and 802B8CEC/802B8CBC continuations
+   for recurrence and investigate any new fallback sites.
    Supply missing AOT/native coverage. Audit fallback syscall continuation
-   separately; the current fix is in the AOT emitter. Build and run with
-   PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF before calling it release-ready.
+   separately; the current fix is in the AOT emitter. Extend the verified
+   interpreter-OFF boot to menu/input/gameplay paths before calling it release-ready.
 6. Run all MSVC tests, synthetic export, policy tests and Windows CI; prove a
    clean checkout rebuilds with separately supplied legal title data.
    Never publish the resulting game executable or translated source.

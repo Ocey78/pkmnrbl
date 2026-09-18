@@ -8,6 +8,7 @@ function(pkmnrbl_collect_nwii_runtime_sources output_variable runtime_directory)
     endif()
     list(REMOVE_ITEM runtime_sources
         "${runtime_directory}/src/core/main.cpp"
+        "${runtime_directory}/src/core/native_only.cpp"
         "${runtime_directory}/src/hle/interpreter.cpp")
     set(${output_variable} "${runtime_sources}" PARENT_SCOPE)
 endfunction()
