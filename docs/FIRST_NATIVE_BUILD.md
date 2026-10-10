@@ -695,6 +695,37 @@ opcodeC4040008 (lfsu), with interpreter disabled. This is the next specific
 translation gap; add a fresh regression before implementing it. No completed
 cutscene, gameplay or persistent save is claimed.
 
+### Single-precision update translation: opening caption reached
+
+The missing lfsu/stfsu immediate forms now emit native transfers with a scoped
+uint32 effective address and post-transfer base writeback. lfsu updates both
+paired lanes, matching the runtime's existing lfs behavior. RA0 remains on
+the unsupported path; double forms are unchanged. Original load/store tests
+failed on the forbidden fallback first.36 native cases cover offsets, wrapping,
+signed zero, register preservation and neighboring bytes. Release67/67 and
+the new Debug3/3 pass; independent review reran the three Release regressions
+with no findings. One initial test-sentinel address overlapped the preexisting
+MMU physical0xC special case; the corrected wrap test uses ordinary RAM0x20.
+The production code was not changed to accommodate that harness issue.
+
+Local isolated export changed ten lfsu sites in two AOT files, nothing else.
+Backups retained; copied outputs checksum-verified; runtime unchanged. Native
+interpreter-OFF rebuild succeeds in41.79s with zero warnings/errors. The first
+Release implementation build had14 warnings, final incremental build zero,
+new Debug fixture build8 warnings, all zero errors.
+
+Current private run e-float-update-20261010.log/.err (bounded600s) gets past
+both previous instruction failures and reaches the opening sequence's visible
+caption, "This is a Toy Pokemon." Screenshot e-float-update-20261010_14400.bmp
+records it. At100s:1607frames/49434draws/64shaders/2429nonblackpixels; GLerror0.
+Both scene-update functions continue executing natively. This is an opening
+caption milestone, NOT a verified complete cutscene or playable game: the
+scene's 3D visuals, timing, sound, later inputs and persistent saves still
+need validation. Continue observing this run and map any next proven blocker.
+
+14fc2f8 Windows CI run38065496404 passed. bdfad84 CI run38066137684 was still
+running at the latest check. Keep all title output/assets/screenshots private.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.

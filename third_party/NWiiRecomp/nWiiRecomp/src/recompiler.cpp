@@ -1648,6 +1648,18 @@ void Recompiler::emit_instruction(std::ostream &out,
           << "] = ctx.mmu.read_f32(ctx.gpr[" << rA << "] + " << simm
           << "); // lfs\n";
     }
+  } else if ((ppc_inst.opcode() == 49 || ppc_inst.opcode() == 53) && ppc_inst.ra() != 0) {
+    const uint32_t fr = ppc_inst.rd();
+    const uint32_t ra = ppc_inst.ra();
+    out << "    {\n        const uint32_t ea = ctx.gpr[" << ra << "] + "
+        << ppc_inst.simm() << ";\n";
+    if (ppc_inst.opcode() == 49) {
+      out << "        ctx.fpr[" << fr << "] = ctx.ps1[" << fr
+          << "] = ctx.mmu.read_f32(ea); // lfsu (both PS lanes)\n";
+    } else {
+      out << "        ctx.mmu.write_f32(ea, (float)ctx.fpr[" << fr << "]); // stfsu\n";
+    }
+    out << "        ctx.gpr[" << ra << "] = ea;\n    }\n";
   } else if (ppc_inst.opcode() == 52) {
     
     uint32_t fS = ppc_inst.rs();
