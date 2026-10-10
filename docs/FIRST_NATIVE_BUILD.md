@@ -20,11 +20,12 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 A native Windows executable links with Visual Studio 2022 x64. The local
 interpreter-OFF build has progressed through resource loading. The Release
-suite now contains 24 passing tests, including ES content and real GPU tests.
-The current boot renders the title-owned English Wii Remote instruction screen
-and advances into loading. Correct boot identity resolved the TPL assertion.
-There is still NO verified title screen,
-input navigation or interpreter-free release. See the latest section below;
+suite now contains 28 passing tests, including native input, ES content and real
+GPU tests. The current interpreter-OFF build renders the English instruction
+screen and the actual Pokemon Rumble title menu (New Game / Options). The user
+confirms the requested controls work and reach the save screen, but reports a
+black screen after starting a save. Save persistence and gameplay are NOT yet
+verified; this is not a finished release. See the latest section below;
 the older sections are chronological evidence, not the current blocker.
 
 Preserve the solved boot milestones:
@@ -367,6 +368,62 @@ tests pass. Independent review found no actionable issue in these two changes.
 Existing FS seek/read hardening and setting.txt serialization remain unchanged;
 this milestone does not claim complete NAND compatibility. Existing upstream
 compiler warnings remain.
+
+### Native controls and verified title menu (2026-10-10)
+
+Boot-identity milestone d3c4956 passed Windows CI:
+https://github.com/Ocey78/pkmnrbl/actions/runs/38026030441
+
+The earlier 100-second run reached a visible controller-disconnected message.
+Native SDL input existed but did not reach the title: Bluetooth bulk-IN remains
+unimplemented, and the existing KPADRead stub was both unbound and only wrote
+0x50 bytes. Local guest consumers establish a 0xB0 KPAD sample with type at5C,
+signed error at5D, pointer-valid at5E and format at5F. Main polling801B1810 calls
+WPADProbe802FA010 and KPADRead803070D0; initialization8017A3E0 checks Probe
+directly. Those two SDK functions are now explicit per-title AOT hooks. The
+guest's connection checks, loading, rendering and menu logic remain unchanged.
+
+The native basic-remote bridge validates complete RAM outputs and publishes
+coherent button snapshots. Samples contain hold/trigger/release, valid basic
+type/status and deterministic unused bytes. Disconnected probes and reads reset
+only that channel's edge history. No physical Bluetooth, extension, pointer,
+motion, speaker or full WPAD callback compatibility is claimed. Other WPAD
+functions remain guest code; trace any future gate before expanding the seam.
+
+User defaults are left mouse=2, right mouse=1, WASD=sideways movement,
+Escape=+, Tab=-, E=A; see [controls](CONTROLS.md). Escape does not quit.
+GameCube bindings remain unchanged. The tests exercise the real input source,
+InputManager and guest MMU, not a copied input mapping.
+
+Regression-first evidence: old KPADRead failed the complete-record error byte;
+old left-click mapping emitted0800 instead of0100; the review-discovered
+Probe-gated reconnect path lost its press edge. All now pass. Explicit hook
+declarations also failed to compile initially; both synthetic generated layouts
+now compile and execute the custom hook once, return to LR, and never execute
+the guest body or interpreter. Shared generated-header emission is unchanged.
+
+The actual title was regenerated and rebuilt with
+PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF. Its 100-second run exits0 with empty
+stderr, no native-only coverage failure, and GL error0 in every rendering
+sample. Screenshot native-controls-20261010_6000.bmp visibly shows the Pokemon
+Rumble logo, New Game and Options. At95s:3031 submissions,126761 draws,35 shaders,
+305823/307200 nonblack pixels. Local evidence is build/logs/native-controls-
+20261010.log/.err and BMPs; none may be uploaded. Bounded table scans802349D8
+and80234A88 during loading completed; they are not the current blocker.
+
+The user separately verified controls and navigation to the save screen, then
+reported black output after starting a save. Their local bluetooth-trace.txt
+is retained as evidence, not published. The automated title-menu run did not
+exercise save creation. Next: reproduce the save-start path with timed samples
+and IPC/FS evidence, distinguish slow loading from a persistent wait/failure,
+then add a failing original regression for the proven missing runtime behavior.
+Do not claim persistent saves or playable gameplay yet.
+
+Fresh verification:28/28 Release tests and10/10 Debug tests pass, including real
+GPU execution; standalone export and repository-policy checks pass. Windows CI
+explicitly includes both new generated-hook layouts and input tests. Independent
+review's reconnect finding was fixed and rechecked; no findings remain for this
+limited milestone. Unrelated local helper scripts are preserved.
 
 ## Reproduction
 

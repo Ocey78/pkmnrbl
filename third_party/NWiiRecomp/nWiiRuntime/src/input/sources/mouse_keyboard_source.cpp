@@ -18,14 +18,18 @@ void MouseKeyboardSource::update(GameCubePadState pads[4], WiimoteState motes[4]
     motes[0].ir_x = (float)mx / (float)w;
     motes[0].ir_y = (float)my / (float)h;
 
-    if (mouse_state & SDL_BUTTON(SDL_BUTTON_LEFT)) motes[0].buttons |= 0x0800; 
-    if (mouse_state & SDL_BUTTON(SDL_BUTTON_RIGHT)) motes[0].buttons |= 0x0400; 
-    if (keys[SDL_SCANCODE_RETURN]) motes[0].buttons |= 0x0010; 
-    if (keys[SDL_SCANCODE_BACKSPACE]) motes[0].buttons |= 0x0001; 
-    if (keys[SDL_SCANCODE_UP]) motes[0].buttons |= 0x0008; 
-    if (keys[SDL_SCANCODE_DOWN]) motes[0].buttons |= 0x0004; 
-    if (keys[SDL_SCANCODE_LEFT]) motes[0].buttons |= 0x0001; 
-    if (keys[SDL_SCANCODE_RIGHT]) motes[0].buttons |= 0x0002; 
+    if (mouse_state & SDL_BUTTON(SDL_BUTTON_LEFT)) motes[0].buttons |= 0x0100; // 2
+    if (mouse_state & SDL_BUTTON(SDL_BUTTON_RIGHT)) motes[0].buttons |= 0x0200; // 1
+    if (keys[SDL_SCANCODE_ESCAPE]) motes[0].buttons |= 0x0010; // +
+    if (keys[SDL_SCANCODE_TAB]) motes[0].buttons |= 0x1000; // -
+    if (keys[SDL_SCANCODE_E]) motes[0].buttons |= 0x0800; // A
+
+    // The Wii Remote is held sideways with its D-pad on the left. Preserve raw
+    // remote bits here; the guest rotates these into horizontal directions.
+    if (keys[SDL_SCANCODE_W]) motes[0].buttons |= 0x0002; // horizontal up
+    if (keys[SDL_SCANCODE_A]) motes[0].buttons |= 0x0004; // horizontal left
+    if (keys[SDL_SCANCODE_S]) motes[0].buttons |= 0x0001; // horizontal down
+    if (keys[SDL_SCANCODE_D]) motes[0].buttons |= 0x0008; // horizontal right
 
     pads[0].err = 0; 
     if (keys[SDL_SCANCODE_SPACE]) pads[0].buttons |= 0x0100;

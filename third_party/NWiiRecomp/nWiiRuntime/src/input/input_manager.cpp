@@ -17,6 +17,7 @@ InputManager::InputManager() {
 }
 
 void InputManager::add_source(std::unique_ptr<IInputSource> source) {
+    std::lock_guard<std::mutex> lock(state_mutex);
     if (source) {
         sources.push_back(std::move(source));
         std::cout << "[InputManager] Registered a new input source. Total sources: " << sources.size() << std::endl;
@@ -29,6 +30,7 @@ void InputManager::set_mode(InputMode mode) {
 }
 
 void InputManager::update() {
+    std::lock_guard<std::mutex> lock(state_mutex);
 
     
 
@@ -54,11 +56,13 @@ void InputManager::update() {
 }
 
 GameCubePadState InputManager::get_gcpad_state(int index) {
+    std::lock_guard<std::mutex> lock(state_mutex);
     if (index >= 0 && index < 4) return gc_pads[index];
     return {0,0,0,0,0,0,0,0,0,-1};
 }
 
 WiimoteState InputManager::get_wiimote_state(int index) {
+    std::lock_guard<std::mutex> lock(state_mutex);
     if (index >= 0 && index < 4) return wii_motes[index];
     return {0,0.5f,0.5f,0,0,0,0,0,0,-1};
 }

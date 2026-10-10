@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <memory>
+#include <mutex>
 
 namespace nwii::runtime::input {
 
@@ -37,6 +38,8 @@ private:
     WiimoteState wii_motes[4];
 
     std::vector<std::unique_ptr<IInputSource>> sources;
+    // Host-thread publication and guest-CPU reads must see complete samples.
+    std::mutex state_mutex;
 };
 
 } 

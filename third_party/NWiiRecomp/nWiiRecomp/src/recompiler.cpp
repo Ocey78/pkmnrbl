@@ -978,11 +978,14 @@ std::string Recompiler::generate_function_cpp(const analyzer::Function &func) {
 void Recompiler::emit_function(std::ostream &out,
                                const analyzer::Function &func,
                                const std::string &func_name) {
+  auto hook = config_.hle_hooks.find(func.start_address);
+  if (hook != config_.hle_hooks.end()) {
+    out << "extern \"C\" void " << hook->second << "(CPUContext& ctx);\n";
+  }
   out << "void " << func_name << "(CPUContext& ctx) {\n";
 
   
   
-  auto hook = config_.hle_hooks.find(func.start_address);
   if (hook != config_.hle_hooks.end()) {
     out << "    " << hook->second << "(ctx);\n";
     out << "    ctx.pc = ctx.lr; return;\n";

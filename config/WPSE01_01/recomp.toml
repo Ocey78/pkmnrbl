@@ -6,3 +6,9 @@ runtime_boot_source_dir = "runtime/boot"
 symbols_csv = "config/WPSE01_01/aot_roots.csv"
 split_output = true
 instructions_per_file = 20000
+
+# Verified basic native-controller SDK seam; not automatic for other titles.
+# The guest retains its original connection checks and frame-input consumers.
+[hle_hooks]
+"802FA010" = "WPADProbe"
+"803070D0" = "KPADRead"

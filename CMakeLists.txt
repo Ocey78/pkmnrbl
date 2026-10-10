@@ -77,6 +77,26 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(sysconf_tests PRIVATE cxx_std_20)
     add_test(NAME sysconf COMMAND sysconf_tests)
 
+    add_executable(native_wii_input_tests
+        tests/native_wii_input_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/pad.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/input/input_manager.cpp)
+    target_include_directories(native_wii_input_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(native_wii_input_tests PRIVATE cxx_std_20)
+    add_test(NAME native_wii_input COMMAND native_wii_input_tests)
+
+    add_executable(default_controls_tests
+        tests/default_controls_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/input/sources/mouse_keyboard_source.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/input/input_manager.cpp)
+    target_include_directories(default_controls_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_host"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/src/input/sources")
+    target_compile_features(default_controls_tests PRIVATE cxx_std_20)
+    add_test(NAME default_controls COMMAND default_controls_tests)
+
     add_executable(ai_mmio_tests
         tests/ai_mmio_tests.cpp
         third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ai.cpp
