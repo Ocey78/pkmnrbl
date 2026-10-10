@@ -957,9 +957,27 @@ lines changed across six chunks, all attributable to these native cache/SPR
 operations. Existing local generated files were backed up before synchronization;
 no function discovery or other title code changed. CPUContext and new LC header
 hashes match the source runtime. Interpreter remains OFF. Full native rebuild
-and the next real-title rendering check are in progress; cutscenes/gameplay are
-NOT yet verified. The separately committed full-bank cache refresh remains out
+succeeded in8m32.87s (499warnings,0errors); the next real-title rendering check
+e-native-locked-cache-20261010 is running. Cutscenes/gameplay are NOT yet verified.
+The separately committed full-bank cache refresh remains out
 of this executable to keep the LC comparison isolated.
+
+### Supplied normals preserved across deferred lighting replay
+
+The FIFO parser chose need_normal from renderer-owned prior XF channel state,
+but decoding runs before renderer replay of current commands. The resulting
+data-loss regression failed4/122 checks: both lit-before-draw/disabled-after
+and wholly unlit original triangles lost their supplied normals. Positions
+and all preceding110 checks still passed. The selection now follows the draw's
+own normal attribute presence. No lighting state is forced and no matrix or
+shader calculation is replaced.
+
+Fresh independent review found no issues. Full Debug42/42 (14.06s) and
+Release84/84 (11.20s) passed; builds0/55warnings respectively, zeroerrors.
+This establishes direct-F32 normal preservation, not new indexed/NBT/integer
+normal coverage or normal-based texture generation. The source fix is separate
+from the LC-only title executable currently running; do not attribute that
+run's outcome to this change.
 
 ## Reproduction
 

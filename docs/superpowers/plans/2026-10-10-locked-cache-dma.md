@@ -41,7 +41,7 @@ MMU::zero_cache_line(uint32_t,bool locked,uint32_t msr).
 - [x] Add separate LC backing/allocation, safe address resolution and synchronous DMA; retain register state and enforce command controls.
 - [x] Emit native SPR/cache calls with correct operands. Test invalid spans and explicit unsupported paths as well as valid transfers.
 - [x] Run targeted tests and full Release/Debug suites; obtain independent review. Its invalidation finding passed RED/GREEN; final84/84 Release and42/42 Debug.
-- [ ] Update handoff, enforce source-only repository policy, commit and push verified milestone.
+- [x] Update handoff, enforce source-only repository policy, commit and push verified milestone (bb61f4e).
 
 ## Task 2: Real-title verification
 

@@ -316,6 +316,67 @@ void full_bank_replay(MMU& mmu, uint32_t address, const std::string& bank) {
                   << '\n';
     }
 }
+
+void preserve_supplied_normals(bool lit_at_draw) {
+    const std::string stage = lit_at_draw ? "lit draw followed by lighting disable"
+                                          : "unlit draw with supplied normals";
+    constexpr std::array<float, 9> normal_matrix{0, -1, 0,
+                                                1, 0, 0,
+                                                0, 0, 1};
+    constexpr Triangle input_normals{{{1, 0, 0}, {0, 1, 0}, {0, 0, -1}}};
+    // Hand-checked rotation, independent of the production normal decoder.
+    constexpr Triangle expected_normals{{{0, 1, 0}, {-1, 0, 0}, {0, 0, -1}}};
+    const std::array<float, 4> channel_controls{
+        std::bit_cast<float>(lit_at_draw ? 2u : 0u), 0, 0, 0};
+    constexpr std::array<float, 4> disabled_channels{};
+
+    std::vector<uint8_t> fifo;
+    cp(fifo, 0x30, 0);
+    cp(fifo, 0x50, 0x0a00); // direct positions and normals, default matrix index 0
+    cp(fifo, 0x60, 0);
+    cp(fifo, 0x70, 0x1009); // XYZ/F32 positions and XYZ/F32 normals
+    xf(fifo, 0, matrix);
+    xf(fifo, 0x400, normal_matrix);
+    xf(fifo, 0x100e, channel_controls);
+    fifo.insert(fifo.end(), {0x90, 0x00, 0x03});
+    for (size_t vertex = 0; vertex < positions.size(); ++vertex) {
+        for (float value : positions[vertex]) put32(fifo, std::bit_cast<uint32_t>(value));
+        for (float value : input_normals[vertex]) put32(fifo, std::bit_cast<uint32_t>(value));
+    }
+    // Parse the whole stream before decoding, as ProcessGXFifo does. The
+    // later channel state must not cause supplied normal attributes to vanish.
+    // The unlit case also forbids treating lighting as their only consumer.
+    xf(fifo, 0x100e, disabled_channels);
+    std::vector<GXCommand> commands;
+    FifoParser::Parse(fifo, commands);
+    auto* draw = only_draw(commands);
+    check(fifo.empty() && draw && draw->raw && draw->vertices.empty(),
+          stage + " queues one complete original triangle for deferred decoding");
+    if (!draw || !draw->raw) return;
+    check(draw->raw->vat.nrmMask == VtxAttrMask::Direct &&
+              draw->raw->vat.nrmType == VtxAttrType::F32 &&
+              !draw->raw->vat.nrmElements,
+          stage + " parses the original XYZ/F32 normal format");
+
+    FifoParser::DecodeDraw(*draw);
+    check(draw->vertices.size() == positions.size(), stage + " decodes all three vertices");
+    check(decoded_positions_equal(*draw, transformed),
+          stage + " preserves the expected transformed positions");
+    bool have_normals = draw->vertices.size() == expected_normals.size();
+    bool exact_normals = have_normals;
+    for (size_t vertex = 0; vertex < draw->vertices.size() &&
+                            vertex < expected_normals.size(); ++vertex) {
+        const auto& actual = draw->vertices[vertex];
+        if (!actual.has_norm) {
+            have_normals = exact_normals = false;
+            continue; // Do not inspect uninitialized data when decoding skipped it.
+        }
+        for (size_t axis = 0; axis < 3; ++axis)
+            exact_normals &= actual.norm[axis] == expected_normals[vertex][axis];
+    }
+    check(have_normals, stage + " preserves has_norm for every supplied normal");
+    check(exact_normals, stage + " decodes exact normal vectors through the captured matrix");
+}
 }
 
 int main() {
@@ -327,6 +388,8 @@ int main() {
     indexed_xf_replay(mmu, 0x90019000, 0x9001a000, "MEM2");
     full_bank_replay(mmu, 0x8001b000, "MEM1");
     full_bank_replay(mmu, 0x9001b000, "MEM2");
+    preserve_supplied_normals(true);
+    preserve_supplied_normals(false);
     nwii::runtime::g_mmu = nullptr;
     std::cout << "RESULT checks=" << checks << " failures=" << failures << '\n';
     return failures ? 1 : 0;

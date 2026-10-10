@@ -21,7 +21,7 @@ struct DrawRaw {
     uint32_t arrayStride[16];
     uint8_t defPosMtxIdx;
     uint8_t defTexMtxIdx[8];
-    bool need_normal;   // lighting enabled at snapshot time
+    bool need_normal;   // normal attribute supplied by this draw's VAT/VCD
     // Position/normal matrix captured at parse time for this draw. GX skins by
     // swapping the matrix in a slot between draws; the renderer applies loads
     // late, so a live lookup gives the wrong (last-written) matrix. Snapshot

@@ -857,7 +857,7 @@ void FifoParser::DecodeDraw(GXCommand& c) {
             return;
         if (diagnostic) diagnostic->object.Add(vtx.pos, r.vat.posElements);
         // CLR1 and tex1-7 are parsed for stream position only (the renderer
-        // uses clr0/tex0). Normals are decoded only for lit draws.
+        // uses clr0/tex0). Supplied normals survive deferred lighting replay.
         // Three indices when NBT normals arrive by index: consume the extra two
         // so the stream position stays right even though only the normal is
         // used. Getting this wrong is invisible on this vertex and fatal on
@@ -1231,10 +1231,10 @@ static void ParseStream(const std::vector<uint8_t>& fifo, size_t& offset, std::v
                 if (g_state.defPosMtxIdx != 0) g_skin_defnz++;
                 if (c.raw->have_snap_mtx) g_skin_snapped++;
             }
-            // Normals only matter when a colour channel is lit (XF 0x100e/0x100f
-            // bit1); decoding them otherwise is pure cost.
-            c.raw->need_normal = ((g_state.xf[0x00E] >> 1) & 1) ||
-                                 ((g_state.xf[0x00F] >> 1) & 1);
+            // Rendering replays XF channel state after deferred decoding. Its
+            // previous lighting state cannot decide whether to retain an
+            // attribute supplied by this draw (also usable by texgen).
+            c.raw->need_normal = vat.nrmMask != VtxAttrMask::None;
             std::memcpy(c.raw->arrayBase, g_state.arrayBase, sizeof(c.raw->arrayBase));
             std::memcpy(c.raw->arrayStride, g_state.arrayStride, sizeof(c.raw->arrayStride));
             c.raw->count = vtx_count;
