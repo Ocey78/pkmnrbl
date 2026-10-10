@@ -226,6 +226,20 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     add_test(NAME tev_shader_gl COMMAND tev_shader_gl_tests)
     set_tests_properties(tev_shader_gl PROPERTIES SKIP_RETURN_CODE 77)
 
+    add_executable(aot_psq_indexed_fixture tests/aot_psq_indexed_fixture.cpp)
+    target_link_libraries(aot_psq_indexed_fixture PRIVATE nwiirecomp_lib)
+    add_test(NAME aot_psq_indexed_decode COMMAND aot_psq_indexed_fixture --check)
+    set(psq_fixture "${CMAKE_CURRENT_BINARY_DIR}/aot_psq_indexed_generated.cpp")
+    add_custom_command(OUTPUT "${psq_fixture}"
+        COMMAND aot_psq_indexed_fixture "${psq_fixture}"
+        DEPENDS aot_psq_indexed_fixture VERBATIM)
+    add_executable(aot_psq_indexed_tests tests/aot_psq_indexed_tests.cpp "${psq_fixture}")
+    target_include_directories(aot_psq_indexed_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+    target_compile_features(aot_psq_indexed_tests PRIVATE cxx_std_20)
+    foreach(mode IN ITEMS 0 1 2 3)
+        add_test(NAME aot_psq_indexed_${mode} COMMAND aot_psq_indexed_tests ${mode})
+    endforeach()
+
     add_executable(aot_syscall_fixture tests/aot_syscall_fixture.cpp)
     target_link_libraries(aot_syscall_fixture PRIVATE nwiirecomp_lib)
     set(syscall_fixture "${CMAKE_CURRENT_BINARY_DIR}/aot_syscall_generated.cpp")

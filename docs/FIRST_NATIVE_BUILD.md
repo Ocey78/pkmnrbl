@@ -667,6 +667,34 @@ Live window capture still failed twice (FrameArrived/window capture timeout);
 the user supplied the menu input. No blind automated input was sent. All
 traces/screenshots/executable and Nintendo-derived generated output stay local.
 
+### Indexed paired quantized instructions: verified native checkpoint
+
+The emitter now handles psq_lx/stx/lux/stux using six-bit XO and indexed W/I,
+with uint32 effective-address snapshots, RA0/RB0 distinction and update forms.
+Reserved-bit/update-RA0 encodings remain unsupported. Unknown op4 diagnostics
+now report the static instruction address instead of stale context PC.
+Original synthetic tests failed first for all four native forms and the
+diagnostic-address contract. The384 native cases plus decode checks now pass
+in both Release and Debug. Full Release64/64 and standalone Debug38/38 pass;
+independent code and CI-wiring review found no issues. CI builds/runs the new
+five tests without game data. Existing quantization helper signed-scale,
+saturation and exception limitations remain separate unfinished work.
+
+Isolated local re-export found exactly39 changed indexed instructions across
+three AOT output files; all other AOT files matched byte-for-byte. Only these
+three generated files were copied after retaining local backups. Runtime
+differences were preserved. Native rebuild succeeds in1m20s,16 warnings,
+zero errors, interpreter OFF. The initial Release test build had8 warnings;
+incremental full Release had zero; new Debug fixture build had553 warnings,
+zero errors. These warnings have not been eliminated.
+
+The user confirmed Save Data A again in e-indexed-psq-20261010.log/.err.
+The formerly failing function802A3970 now executes repeatedly and loading
+proceeds further. The next failfast is pc80252450, LR802534A0, CTR802538A0,
+opcodeC4040008 (lfsu), with interpreter disabled. This is the next specific
+translation gap; add a fresh regression before implementing it. No completed
+cutscene, gameplay or persistent save is claimed.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.

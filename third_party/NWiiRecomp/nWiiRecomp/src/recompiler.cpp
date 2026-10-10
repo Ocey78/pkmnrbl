@@ -2529,13 +2529,29 @@ void Recompiler::emit_instruction(std::ostream &out,
     out << "    if (nwii::runtime::handle_syscall(ctx)) return;\n";
   } else if (ppc_inst.opcode() == 4) { 
     uint32_t xo = (inst.opcode >> 1) & 0x1F;
+    uint32_t xo_6 = (inst.opcode >> 1) & 0x3F;
     uint32_t xo_10 = (inst.opcode >> 1) & 0x3FF;
     uint32_t frD = ppc_inst.rd();
     uint32_t frA = ppc_inst.ra();
     uint32_t frB = ppc_inst.rb();
     uint32_t frC = ppc_inst.rc();
 
-    if (xo == 21) {
+    if ((xo_6 == 6 || xo_6 == 7 || xo_6 == 38 || xo_6 == 39) &&
+        !(inst.opcode & 1) && (xo_6 < 32 || frA != 0)) {
+      const bool update = xo_6 >= 32;
+      const bool store = (xo_6 & 1) != 0;
+      const uint32_t w = (inst.opcode >> 10) & 1;
+      const uint32_t i = (inst.opcode >> 7) & 7;
+      // Indexed quantization uses six XO bits; W/I occupy the high bits
+      // of the ten-bit arithmetic XO. RB=0 still reads GPR0, unlike RA=0.
+      out << "    {\n        const uint32_t ea = ";
+      if (frA != 0) out << "ctx.gpr[" << frA << "] + ";
+      out << "ctx.gpr[" << frB << "];\n";
+      out << "        ctx.psq_" << (store ? "store" : "load") << "("
+          << frD << ", ea, " << w << ", " << i << ");\n";
+      if (update) out << "        ctx.gpr[" << frA << "] = ea;\n";
+      out << "    } // psq_" << (store ? "st" : "l") << (update ? "ux" : "x") << "\n";
+    } else if (xo == 21) {
       out << "    ctx.ps_add(" << frD << ", " << frA << ", " << frB << ");\n";
     } else if (xo == 20) {
       out << "    ctx.ps_sub(" << frD << ", " << frA << ", " << frB << ");\n";
@@ -2611,7 +2627,7 @@ void Recompiler::emit_instruction(std::ostream &out,
     } else {
       out << "    std::cerr << \"UNIMPLEMENTED Opcode 4 (ps_*) XO \" << " << xo
           << " << \" XO_10 \" << " << xo_10
-          << " << \" at 0x\" << std::hex << ctx.pc << std::dec << \"\\n\"; "
+          << " << \" at 0x" << std::hex << inst.address << std::dec << "\\n\"; "
              "std::exit(1);\n";
       out << "    ctx.fpr[" << frD << "] = 0.0;\n";
       out << "    ctx.ps1[" << frD << "] = 0.0;\n";
