@@ -899,6 +899,30 @@ passed, as did independent review. Native interpreter-OFF rebuild4.19s succeeded
 with zero warnings/errors. The new e-position-decode-20261010 run is recording
 coordinates; gameplay/cutscene recovery is still unverified.
 
+### Full-bank cache refresh and current matrix-source evidence
+
+An independent original regression now covers the previously reproduced stale
+per-vertex matrix banks. With both draws queued before decoding, changing A to B
+outside an unchanged display list left the cached draw using A. MEM1 and MEM2
+fixtures failed6/110 checks before the correction. The cache replay now copies
+the draw and refreshes both existing full-bank snapshots at its ordered position.
+Earlier queued draws remain A; the replay decodes with B. Cache hits, direct XF,
+and indexed-load refresh remain exercised. Initial-empty-bank and lighting
+selection behavior are unchanged.
+
+Complete registered Release71/71 (10.96s) and Debug42/42 (2.12s) passed, and
+independent review found no issues. Builds:Release21warnings,Debug0,zero errors.
+This source correction has not yet been copied into the native title: the
+matrix-source diagnostic intentionally runs the unchanged prior executable.
+
+The e-position-decode-20261010 real trace shows nonzero original model positions
+with deferred transforms, followed by zero view-space batches. This does not
+attribute those batches to the separate full-bank cache defect. The unchanged
+e-indexed-matrix-source-20261010 run, with existing GXTRACE enabled, records
+zero source values for early indexed position and normal matrix loads. Next
+trace the guest matrix producers and their address/data lifetime; do not bypass
+projection, lighting, culling or depth. No rendered 3D scene is verified yet.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.

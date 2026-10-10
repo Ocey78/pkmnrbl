@@ -619,12 +619,17 @@ static void ExpandDisplayList(uint32_t addr, uint32_t size,
                     // shadow so re-snapshots below stay live.
                     ParseApplyMatrixWrite(c.reg, c.payload);
                 } else if (c.type == GXCommandType::DrawPrimitive && c.raw &&
-                           c.raw->have_snap_mtx) {
+                           (c.raw->have_snap_mtx || !c.raw->snap_pos_bank.empty())) {
                     // Re-snapshot the matrix from the current parse shadow so a
                     // cached skinned draw animates instead of freezing at the
                     // pose from when it was first parsed. (raw is shared_ptr;
                     // copy before mutating so the cache entry stays pristine.)
                     c.raw = std::make_shared<DrawRaw>(*c.raw);
+                    if (!c.raw->snap_pos_bank.empty()) {
+                        c.raw->snap_pos_bank.assign(g_parse_posmtx, g_parse_posmtx + 256);
+                        c.raw->snap_nrm_bank.assign(g_parse_nrmmtx, g_parse_nrmmtx + 96);
+                        continue;
+                    }
                     uint32_t pb = (uint32_t)c.raw->defPosMtxIdx * 4;
                     uint32_t nb = 3u * (c.raw->defPosMtxIdx & 31);
                     if (pb + 12 <= 256 && nb + 9 <= 96) {

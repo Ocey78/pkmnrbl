@@ -195,6 +195,127 @@ void indexed_xf_replay(MMU& mmu, uint32_t address, uint32_t array_base,
     check(g_prof_dl_hits == hits + 1, bank + " indexed replay uses the real cache");
     validate(replay, changed_matrix, changed_transformed, bank + " indexed hit");
 }
+
+template <size_t N>
+void xf(std::vector<uint8_t>& bytes, uint16_t reg, const std::array<float, N>& values) {
+    bytes.push_back(0x10);
+    bytes.push_back(uint8_t((N - 1) >> 8));
+    bytes.push_back(uint8_t(N - 1));
+    bytes.push_back(uint8_t(reg >> 8));
+    bytes.push_back(uint8_t(reg));
+    for (float value : values) put32(bytes, std::bit_cast<uint32_t>(value));
+}
+GXCommand* only_draw(std::vector<GXCommand>& commands) {
+    GXCommand* result = nullptr;
+    for (auto& command : commands) {
+        if (command.type != GXCommandType::DrawPrimitive) continue;
+        if (result) return nullptr;
+        result = &command;
+    }
+    return result;
+}
+template <size_t N>
+bool bank_starts_with(const std::vector<float>& bank, const std::array<float, N>& values) {
+    return bank.size() >= N && std::equal(values.begin(), values.end(), bank.begin());
+}
+bool decoded_positions_equal(const GXCommand& draw, const Triangle& expected) {
+    if (draw.vertices.size() != expected.size()) return false;
+    for (size_t i = 0; i < expected.size(); ++i) {
+        const auto& vertex = draw.vertices[i];
+        if (!vertex.has_pos || !vertex.pre_xf) return false;
+        for (size_t axis = 0; axis < 3; ++axis)
+            if (vertex.pos[axis] != expected[i][axis]) return false;
+    }
+    return true;
+}
+void full_bank_replay(MMU& mmu, uint32_t address, const std::string& bank) {
+    constexpr std::array<float, 9> normal_a{1, 0, 0, 0, 1, 0, 0, 0, 1};
+    constexpr std::array<float, 9> normal_b{0, -1, 0, 1, 0, 0, 0, 0, 1};
+    // The list never loads a matrix. All three original vertices explicitly
+    // select matrix index 0, which selects the full-bank snapshot path.
+    std::vector<uint8_t> bytes{0x90, 0x00, 0x03};
+    for (const auto& xyz : positions) {
+        bytes.push_back(0);
+        for (float value : xyz) put32(bytes, std::bit_cast<uint32_t>(value));
+    }
+    bytes.resize(64, 0);
+    write_dl(mmu, address, bytes);
+
+    std::vector<uint8_t> first_fifo;
+    cp(first_fifo, 0x30, 0);
+    cp(first_fifo, 0x50, 0x201); // per-vertex matrix index, direct position
+    cp(first_fifo, 0x60, 0);
+    cp(first_fifo, 0x70, 9); // XYZ float32; no normal attribute to decode
+    xf(first_fifo, 0, matrix);
+    xf(first_fifo, 0x400, normal_a);
+    first_fifo.push_back(0x40);
+    put32(first_fifo, address);
+    put32(first_fifo, uint32_t(bytes.size()));
+    const uint64_t first_hits = g_prof_dl_hits;
+    std::vector<GXCommand> first;
+    FifoParser::Parse(first_fifo, first);
+    auto* first_draw = only_draw(first);
+    check(first_fifo.empty() && first_draw && first_draw->raw &&
+              first_draw->vertices.empty(),
+          bank + " full-bank first call queues one undecoded draw");
+    check(g_prof_dl_hits == first_hits, bank + " full-bank first call is a cache miss");
+    if (!first_draw || !first_draw->raw) return;
+    check(first_draw->raw->vat.posMatIdx && !first_draw->raw->have_snap_mtx &&
+              first_draw->raw->snap_pos_bank.size() == 256 &&
+              first_draw->raw->snap_nrm_bank.size() == 96,
+          bank + " full-bank fixture captures both matrix banks");
+    check(bank_starts_with(first_draw->raw->snap_pos_bank, matrix),
+          bank + " first queued draw captures position matrix A");
+    // Verify normal snapshot contents without depending on the separate
+    // parse-time lighting decision or changing any parsed command fields.
+    check(bank_starts_with(first_draw->raw->snap_nrm_bank, normal_a),
+          bank + " first queued draw captures normal matrix A");
+    const auto original_positions = first_draw->raw->snap_pos_bank;
+    const auto original_normals = first_draw->raw->snap_nrm_bank;
+
+    // Only matrices outside the immutable DL change. CP state stays identical,
+    // and both commands remain queued until this second parse has completed.
+    std::vector<uint8_t> second_fifo;
+    xf(second_fifo, 0, changed_matrix);
+    xf(second_fifo, 0x400, normal_b);
+    second_fifo.push_back(0x40);
+    put32(second_fifo, address);
+    put32(second_fifo, uint32_t(bytes.size()));
+    const uint64_t hits = g_prof_dl_hits;
+    std::vector<GXCommand> second;
+    FifoParser::Parse(second_fifo, second);
+    auto* second_draw = only_draw(second);
+    check(second_fifo.empty() && second_draw && second_draw->raw &&
+              second_draw->vertices.empty(),
+          bank + " full-bank second call queues one undecoded draw");
+    check(g_prof_dl_hits == hits + 1, bank + " full-bank second call uses the real cache");
+    if (!second_draw || !second_draw->raw) return;
+    check(first_draw->raw->snap_pos_bank == original_positions,
+          bank + " replay preserves the entire first queued position bank");
+    check(first_draw->raw->snap_nrm_bank == original_normals,
+          bank + " replay preserves the entire first queued normal bank");
+    check(second_draw->raw->snap_pos_bank.size() == 256 &&
+              bank_starts_with(second_draw->raw->snap_pos_bank, changed_matrix),
+          bank + " cached draw captures current position matrix B");
+    check(second_draw->raw->snap_nrm_bank.size() == 96 &&
+              bank_starts_with(second_draw->raw->snap_nrm_bank, normal_b),
+          bank + " cached draw captures current normal matrix B");
+    FifoParser::DecodeDraw(*first_draw);
+    FifoParser::DecodeDraw(*second_draw);
+    check(decoded_positions_equal(*first_draw, transformed),
+          bank + " first queued draw decodes all vertices with A after the second parse");
+    check(decoded_positions_equal(*second_draw, changed_transformed),
+          bank + " cache-hit draw decodes all vertices with B after the second parse");
+    if (!first_draw->vertices.empty() && !second_draw->vertices.empty()) {
+        const auto& a = first_draw->vertices.front();
+        const auto& b = second_draw->vertices.front();
+        std::cout << "OBS " << bank << " full-bank cache_hit_delta="
+                  << g_prof_dl_hits - hits << " first_view="
+                  << a.pos[0] << ',' << a.pos[1] << ',' << a.pos[2]
+                  << " second_view=" << b.pos[0] << ',' << b.pos[1] << ',' << b.pos[2]
+                  << '\n';
+    }
+}
 }
 
 int main() {
@@ -204,6 +325,8 @@ int main() {
     direct_xf_replay(mmu, 0x90018000, "MEM2");
     indexed_xf_replay(mmu, 0x80019000, 0x8001a000, "MEM1");
     indexed_xf_replay(mmu, 0x90019000, 0x9001a000, "MEM2");
+    full_bank_replay(mmu, 0x8001b000, "MEM1");
+    full_bank_replay(mmu, 0x9001b000, "MEM2");
     nwii::runtime::g_mmu = nullptr;
     std::cout << "RESULT checks=" << checks << " failures=" << failures << '\n';
     return failures ? 1 : 0;
