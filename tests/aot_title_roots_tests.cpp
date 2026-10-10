@@ -66,5 +66,19 @@ int main() {
         std::cerr << "FAIL: AOT callback must run once, resume at exact LR, and return to caller\n";
         return 1;
     }
-    std::cout << "PASS: title-configured indirect branch and callback execute as AOT\n";
+    interpreted = finished = false;
+    visits = 0;
+    nwii::runtime::CPUContext landing_ctx;
+    landing_ctx.pc = 0x80004000;
+    landing_ctx.ctr = 0x8019EACC + 4; // runtime-selected interior landing pad
+    landing_ctx.lr = landing_ctx.ctr;
+    landing_ctx.gpr[10] = 0;
+    landing_ctx.gpr[11] = 0x80005000;
+    run_game(landing_ctx);
+    if (interpreted || !finished || landing_ctx.gpr[10] != 1 ||
+        landing_ctx.lr != 0x80005000) {
+        std::cerr << "FAIL: configured interior landing pad must execute natively once and restore LR\n";
+        return 1;
+    }
+    std::cout << "PASS: title-configured indirect branch, callback and landing pad execute as AOT\n";
 }

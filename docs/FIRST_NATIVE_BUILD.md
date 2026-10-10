@@ -766,6 +766,34 @@ Retain failfast OFF behavior and only implement gaps after relevant evidence.
 
 ## Reproduction
 
+### New boot exception target: native coverage checkpoint
+
+The next clipping run e-clip-planes-20261010 exited1 after the Wii Remote screen,
+before Save A: uncovered AOT PC8019EAD0, LR8019EAD0, CTR803419B8. No graphics
+exception was logged. Local code and exception metadata confirm an intentional
+landing pad: the owning function8019E9C0 plus relative offset110 selects8019EAD0.
+The title's own restoration routine loads that computed target into LR and
+returns to it. The normal branch at8019EACC skips this block, so ordinary CFG
+discovery correctly does not find it; changing the preceding call's LR would
+be wrong. Why this run entered the exception path is still unproven.
+
+Added precisely this observed entry to the existing redistributable AOT-root
+CSV, without changing exception behavior or enabling interpretation. Original
+split/single synthetic tests both failed before the root and now pass in
+Release and Debug. Full Release67/67 pass; fresh review found no issues.
+The fixture verifies discovery/native dispatch and LR restoration, not the
+whole title exception mechanism. Existing two roots remain intact.
+
+Isolated export adds exactly two native functions: the landing pad and its
+direct cleanup callee803422A8. Five output files differ due to chunk placement;
+1429 preexisting function bodies in those files were compared unchanged by
+hash. Other output files are identical. Only those five files plus declarations
+and dispatcher were copied after backups, with hashes verified. Runtime and
+all unrelated local changes remain intact. The full title rebuild is pending
+at this checkpoint because the declaration-header change recompiles all chunks.
+After it completes, rerun the title OFF with clipping/DL/matrix diagnostics;
+do not claim this crash or missing 3D is end-to-end fixed before that run.
+
 Full legal local build: tools/Invoke-NativeBuild.ps1.
 After emitter changes, rebuild nwiirecomp, run it with
 config/WPSE01_01/recomp.toml, then rebuild build/windows-release/generated

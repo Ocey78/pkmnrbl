@@ -42,6 +42,16 @@ int main(int argc, char** argv) {
         0x4E800020  // blr
     });
 
+    // Original interior landing-pad fixture. The normal entry skips the
+    // handler; its address is computed at runtime (not an absolute data root).
+    section(0x8019EACC, {
+        0x4800000C, // b +12: normal path skips the landing pad
+        0x394A0001, // addi r10,r10,1: handler's observable effect
+        0x7D6803A6, // mtlr r11: restore the dispatch caller's return
+        0x4E800020  // blr
+    });
+    section(0x80006004, {0x8019EACC}, false);
+
     const auto title = toml::parse_file(argv[3]);
     nwii::recomp::SymbolTable symbols;
     const auto csv = title["symbols_csv"].value_or(std::string());
