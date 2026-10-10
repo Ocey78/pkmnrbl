@@ -1107,6 +1107,7 @@ static void ParseStream(const std::vector<uint8_t>& fifo, size_t& offset, std::v
 
             GXCommand c;
             c.type = GXCommandType::XFRegister;
+            c.val = 0; // Direct payload, not the cache's LOAD_INDX marker.
             c.length = length;
             c.reg = (fifo[offset + 3] << 8) | fifo[offset + 4];
 

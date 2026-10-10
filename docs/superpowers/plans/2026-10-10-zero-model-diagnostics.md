@@ -11,7 +11,7 @@
 - [x] Add an original lit indexed-matrix fixture: known nonzero object vertices, selected zero matrix slot while another bank slot is nonzero. Assert actual decoded zeros and require the diagnostic to distinguish the input and selected matrix. Observe missing diagnostic RED first.
 - [x] Under NWII_RENDER_DIAG, record bounded lit-draw input/count/format/array details, object bounds, actual selected transform source and zero-matrix count, representative translation/linear maximum, and decoded bounds. No title payload dumps.
 - [x] Verify diagnostic integration plus complete Release/Debug suites and fresh review.
-- [ ] Copy only attributable runtime changes after backups.
+- [x] Copy only attributable runtime changes after backups.
 - [ ] Rebuild native OFF and rerun real title. Use the new observation to select one proven minimal behavior correction with its own failing regression.
 
 Separate candidates remain unproven as this zero-position cause: stale full-bank snapshots on cache hits; invalid indexed position arrays; direct XF commands with uninitialized cache-marker fields. Private synthetic investigation may distinguish their independent correctness contracts, but do not bundle fixes into the diagnostic patch or claim full scene recovery from unit tests.
@@ -19,3 +19,6 @@ Separate candidates remain unproven as this zero-position cause: stale full-bank
 Verified registered suites:Release70/70,Debug41/41. DiagnosticRED/disabledcontrol
 thenGREEN, first16 lit draws then every4096 to128records. Independent review
 found no issues and noted other scalar branches/cap are code-reviewed only.
+Checkpoint b5999d8 pushed. The diagnostic was copied with the separately tested
+one-line direct-XF marker fix; native OFF rebuild4.01s succeeded. Real
+e-direct-xf-20261010 is running; observation outcome remains pending.

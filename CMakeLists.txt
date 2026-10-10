@@ -171,6 +171,17 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     set_tests_properties(gx_decode_diagnostic_disabled PROPERTIES
         FAIL_REGULAR_EXPRESSION "\\[GXDECODE\\];FAIL")
 
+    add_executable(gx_display_list_xf_tests
+        tests/gx_display_list_xf_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/gx.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/gx/fifo_parser.cpp)
+    target_include_directories(gx_display_list_xf_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(gx_display_list_xf_tests PRIVATE cxx_std_20)
+    add_test(NAME gx_display_list_xf COMMAND gx_display_list_xf_tests)
+    set_tests_properties(gx_display_list_xf PROPERTIES ENVIRONMENT_MODIFICATION
+        "NWII_NODLCACHE=unset:;NWII_NOSEED=unset:;NWII_GXTRACE=unset:;NWII_SKINDBG=unset:;NWII_DLDBG=unset:;NWII_XFDBG=unset:;NWII_VATDBG=unset:;NWII_DESYNC=unset:;NWII_RENDER_DIAG=unset:")
+
 endif()
 
 add_library(pkmnrbl_build_options INTERFACE)

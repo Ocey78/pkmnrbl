@@ -19,7 +19,7 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 ## Verified milestones and limits
 
 A native Windows executable links with Visual Studio 2022 x64 and runs with
-the bring-up interpreter OFF. Current registered tests:70/70 Release and41/41 standalone
+the bring-up interpreter OFF. Current registered tests:71/71 Release and42/42 standalone
 Debug passed. The title menu, requested controls, Save A selection and advancing
 opening captions are verified. The scene behind those captions remains black
 in the latest completed diagnostic; full cutscenes, gameplay, sound and save
@@ -853,8 +853,8 @@ An original nonzero-object/zero-selected-bank fixture failed on the absent recor
 before instrumentation, then passed; the disabled case verifies silence. Full
 registered Release70/70 (9.31s) and Debug41/41 (1.90s) pass. Release build21warnings,
 zero errors. Fresh review found no issues; single/deferred/partial/nonfinite paths
-and the cap are code-reviewed, not individually regression-exercised. Export to
-the real title is pending the next native rebuild.
+and the cap are code-reviewed, not individually regression-exercised. The diagnostic
+is included in the next native rebuild described below.
 
 The direct-XF cache investigation separately reproduced the zero-collapse with
 original bytes and unchanged production code in Debug: cache miss produces
@@ -862,6 +862,25 @@ original bytes and unchanged production code in Debug: cache miss produces
 commands leave val uninitialized, and replay tests its high bit as an indexed-load
 marker. The private probe fails16/60 checks. A dedicated regression and minimal
 field initialization are next; actual title command attribution remains unproven.
+
+### Direct XF cache marker: verified correction and next real run
+
+The dedicated original gx_display_list_xf regression independently failed16/84
+checks before the fix in Debug. All direct-XF misses worked; all eight confirmed
+direct cache hits collapsed the transform to zero. Genuine indexed-load controls
+in both banks already passed and refreshed changed RAM at index2/stride48.
+Only the direct-XF constructor now sets val=0 to distinguish its immediate payload
+from the cache's indexed-load marker. No cache disabling or matrix override.
+
+Afterward the complete Release71/71 (9.94s) and Debug42/42 (2.00s) pass; fresh
+independent review also passed the Debug regression and found no issues. Release
+build21warnings, Debug0, all zero errors. Only the parser file, including the
+separately checkpointed observation code, was copied after comparison with its
+known preimage and a private backup. Native OFF build4.01s, zero warnings/errors;
+private e-direct-xf-20261010 is running. Visual recovery is not yet established.
+
+Source checkpoints6c312ef (memory contract) andb5999d8 (diagnostics) are pushed;
+6c312ef Windows CI38069096482 passed. No game assets/code/captures were uploaded.
 
 ## Reproduction
 
