@@ -12,7 +12,7 @@
 #include <vector>
 #include <thread>
 #include "runtime/hw/hw.h"
-#include "runtime/event_scheduler.h"
+#include "runtime/guest_timing.h"
 #include "runtime/os_thread.h"
 #include "runtime/virtual_disc.h"
 
@@ -618,6 +618,7 @@ namespace nwii {
 namespace runtime {
 
 void init_ipc_client(CPUContext &ctx) {
+  initialize_guest_timers(ctx);
   IOSKernel::get().init();
   nwii::runtime::devices::register_all();
 }
@@ -998,16 +999,7 @@ bool process_pending_callbacks(CPUContext &ctx) {
   
   nwii::runtime::hw::di_tick();
 
-  if (ctx.vblank_pending) {
-      if (!ctx.in_callback && (ctx.msr & 0x8000)) {
-          ctx.vblank_pending = false;
-          nwii::runtime::hw::vi_trigger_interrupt();
-
-          
-          
-          hle_drive_thread_queue(ctx);
-      }
-  }
+  consume_host_vblank_hint(ctx);
 
   if (ctx.in_callback && ctx.pc == 0xFFFFFFFC) {
     
@@ -1025,40 +1017,7 @@ bool process_pending_callbacks(CPUContext &ctx) {
     return false;
   }
 
-  // Periodically raise VI (PI_INTSR bit 8 = 0x100, Dolphin INT_CAUSE_VI)
-
-  
-
-  
-
-  
-
-  
-
-  
-  
-  {
-      static bool vi_registered = false;
-      if (!vi_registered) {
-          vi_registered = true;
-
-          
-          uint64_t vi_period = ctx.tb_freq / 60;
-          if (vi_period == 0) vi_period = 500000;
-          nwii::runtime::EventScheduler::get().schedule_recurring(
-              vi_period, [](CPUContext& c, uint64_t) {
-
-                  
-                  
-                  if ((nwii::runtime::hw::pi_intmr & 0x100) && !c.in_callback &&
-                      !(nwii::runtime::hw::pi_intsr & 0x100) &&
-                      (c.dispatch_saved_ctx == 0 || c.mmu.read32(0x800000E4) == 0)) {
-                      nwii::runtime::hw::vi_trigger_interrupt();
-                  }
-              });
-      }
-      nwii::runtime::EventScheduler::get().advance(ctx, ctx.read_timebase());
-  }
+  service_guest_timers(ctx);
 
   
   if (ctx.dec_expired() && (ctx.msr & 0x8000) && !ctx.in_callback) {

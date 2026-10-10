@@ -535,6 +535,65 @@ capture timed out twice, so the user was asked to start New Game in the running
 transition and trace the next proven blocker. No cutscene, persistent-save,
 or gameplay success is claimed.
 
+### Next proven blocker: duplicate video timing (2026-10-10)
+
+Commit34fc73f and Windows CI run38030802937 pass. The user then reproduced
+black output after New Game / Save Data A. A second trace stayed black for
+over two minutes while interrupts and game updates continued. Frames/draws
+stopped at4652/143629. No native crash or filesystem failure was established.
+
+The local frame loop8019DC50 catches up simulation updates before rendering.
+At8019DD64/DD74 it loops when accumulated VI time exceeds simulated time.
+Targeted register watches prove a growing debt of thousands of updates;
+about170 VI retraces per host second were observed. A third trace reproduced
+the same starvation while still at the menu, independently of save creation.
+The old host-presentation vblank signal and EventScheduler recurring VI both
+raise guest VI interrupts. This is a runtime timing defect, not permission to
+patch the game's skip-render branch.
+
+The corrected runtime now uses one guest-time VI source and advances the same
+virtual clock to the earliest event/decrementer during genuine CPU idle.
+PC0 alone proved insufficient in the actual title: its SDK scheduler idles at
+nonzero PC802BC278. A second failing regression preceded recognition of a
+validated nonempty, complete, all-waiting SDK active-thread list, with EE set,
+no current thread and a distinct valid context. Invalid/ready/running states,
+callbacks, handlers and deliverable interrupts prevent this fast-forward.
+There is no hard-coded title-PC exception or guest branch rewrite.
+
+Final verification: Release48/48 and Debug27/27 pass, including the actual GPU
+test and17 timing cases. Separate implementation review and scoped re-review
+have no outstanding findings. Full host build succeeds with6 compiler warnings
+(5 from unchanged CPUContext,1 getenv deprecation retaining its existing clock
+policy), zero errors. The actual native title rebuild has zero compiler
+warnings/errors and remains interpreter OFF. Changed runtime files were
+checksum-verified against their generated copies; AOT game code is unchanged.
+
+Private e-sdk-idle-20261010_10800.bmp shows New Game / Options. At75s the title
+has2364 frames,41514 draws,24 shaders,305823 nonblack pixels and GL error0.
+The first single-clock iteration had crawled at3.5 frames/sec in SDK idle;
+after recognizing real idle it progresses through the startup screens to the
+menu. New Game/Save Data A interaction has been requested in this corrected
+run. Cutscenes, actual gameplay and persistent saves are NOT yet verified.
+
+Resume from e-sdk-idle-20261010.log/.err and the newest screenshots in build/logs.
+Keep the actual AOT native build and both timing corrections. Capture confirmed
+Save Data A input, then map the next persistent guest state before adding its
+own failing regression. Filesystem creation/metadata/persistence and DSP AX
+parameter-block processing remain known incomplete areas, but neither should
+be declared the next blocker without trace evidence. Never upload private
+traces, screenshots, generated game code, game content, or the title executable.
+
+Longer-run qualification: the corrected title still develops intermittent
+render starvation after the menu. Frames/draws hold3592/174138 around175-180s;
+updates later catch up and eight renders resume around220-225s. Retraces now
+advance about29 per host second, not the former170, but main/audio CPU work
+still consumes more guest-time budget than some simulation steps allow.
+Current215s sample802DF7F4/LR802DF574 and main-update chain802881AC/80287FA4/
+80286120 ->8012EF74 ->8019DD08 need further mapping. This milestone fixes the
+proven duplicate source and real-idle progress, NOT the complete black-screen
+problem. Next discriminate timer/instruction budget from missing audio/DSP
+behavior before changing either. Save Data A on this final build is unconfirmed.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.

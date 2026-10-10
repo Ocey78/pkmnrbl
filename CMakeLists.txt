@@ -106,6 +106,22 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(ai_mmio_tests PRIVATE cxx_std_20)
     add_test(NAME ai_mmio COMMAND ai_mmio_tests)
 
+    add_executable(guest_timing_tests
+        tests/guest_timing_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/core/guest_timing.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/core/event_scheduler.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_vi.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/mmio_dispatcher.cpp)
+    target_include_directories(guest_timing_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(guest_timing_tests PRIVATE cxx_std_20)
+    foreach(case IN ITEMS presentations_120 presentations_240 presentations_120_wii presentations_240_wii
+                          idle idle_wii deadlines busy coalescing wall reset masked_idle scheduler_deadlines
+                          sdk_idle sdk_deadlines sdk_invalid sdk_guards)
+        add_test(NAME guest_timing_${case} COMMAND guest_timing_tests ${case})
+    endforeach()
+    set_tests_properties(guest_timing_wall PROPERTIES ENVIRONMENT "NWII_WALLTB=1")
+
     add_executable(renderer_diagnostics_tests
         tests/renderer_diagnostics_tests.cpp
         third_party/NWiiRecomp/nWiiRuntime/src/hle/gx/renderer_diagnostics.cpp)

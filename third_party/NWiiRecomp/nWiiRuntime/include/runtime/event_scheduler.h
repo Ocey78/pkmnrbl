@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace nwii::runtime {
@@ -34,6 +35,7 @@ public:
 
     void reset();
     uint64_t now() const { return m_now; }
+    std::optional<uint64_t> next_deadline() const;
 
 private:
     struct Event {

@@ -172,3 +172,99 @@ Live Computer Use window capture failed twice (FrameArrived/window capture
 timed out), so no blind UI input was sent. The title's own screenshot confirms
 the menu; the user was asked to start New Game while the600-second diagnostic
 records the next transition. No persistent save or cutscene claim is made.
+
+### Confirmed New Game black screen and video catch-up starvation
+
+Milestone34fc73f was committed/pushed; Windows CI run38030802937 passed.
+The user confirmed starting New Game and seeing black in e-reply-fixed, then
+confirmed selecting Save Data A and leaving the second e-frame-gate run open.
+The first run exits normally after window closure, not a native crash. The
+second stayed black for over two minutes before its owned diagnostic process
+was stopped. Frames/draws stabilized at4652/143629, shaders58; IRQ/audio activity
+continued. It is not valid to infer a filesystem failure from the black output.
+
+Local AOT/DOL mapping identifies the frame loop8019DC50 and its vtable:
+update8012EF50, predicate8012EEB0, render8012EBE0. The predicate is not itself
+the render gate. At8019DD64/DD74 the catch-up loop repeats updates whenever
+signed r25 > r24 and byte804B9110 was zero. Per update r24 +=50; r25 increases
+by50 * elapsed VI retraces, obtained from804B9674 through802C6510.
+
+Third private trace e-catchup watches804B9110 with registers and peeks the
+VI count. The watch's printed PC8019DD50 is a stale block PC; the actual store
+is8019DD70, verified in local source/instructions. At150-155s,31 updates and
+zero renders occur while debt grows96050 ->114750. By185-190s the debt grows
+348850 ->388600 (7772 updates owed), with56 updates and zero renders. VI advances
+about850 times per five host seconds. Frames/draws remain5545/236018. The third
+run was still at the menu in its final screenshot, so the timing defect can
+also freeze menu rendering without a save action. Root stopped this diagnostic
+after preserving the evidence; no save interaction is claimed for this run.
+
+Runtime cause: main.cpp sets vblank_pending after every host presentation,
+and ios.cpp converts those pulses into VI, independently of a second recurring
+EventScheduler VI at tb_freq/60. Host refresh therefore adds extra guest ticks.
+Removing the host source alone is insufficient: PC0 idle sleeps without
+advancing the virtual instruction-count clock. The next bounded change must
+retain one guest-time VI source and advance that same clock to the earliest
+event/decrementer only while genuinely idle, preserving wall-clock mode and
+interrupt delivery/coalescing. Do not bypass the title's catch-up branch.
+
+- [ ] Real production-timing regression RED, then minimum single-clock fix.
+- [ ] Test cadence, host-hint independence, pending/masked interrupt behavior,
+  same-tick/late polling, idle event/DEC progress and wall-clock preservation.
+- [ ] Independent review, complete test suites, native runtime rebuild and
+  actual New Game/cutscene/gameplay verification. This is not yet a fix claim.
+
+First timing iteration: RED reproduced120/240 host-dependent VIs instead of60
+and lack of PC0 idle/earlier-DEC progress. Single guest-clock VI plus PC0 idle
+advance passes13 new timing cases (both40.5MHz default and60.75MHz Wii clocks),
+full Release44/44 and Debug23/23. Runtime-only title rebuild succeeds with
+interpreter OFF and zero compiler warnings/errors. Separate implementation
+review found only a wall-clock-test preemption sensitivity, to be corrected.
+
+Actual e-single-vi diagnostic proves catch-up debt now clears and rendering
+continues, but startup crawls at roughly3.5 guest frames/sec. Local mapping
+shows repeated PC802BC278/LR802BC26C is a genuine SDK scheduler idle loop,
+not expensive scene work: currentthread800000E4 is zero, all seven active
+threads are state4 (waiting), main80452938 sleeps on VIqueue804B9650, and the
+loop polls ready bitmap804B9508. DOL instructions230/25C/270/274/278 agree.
+PC0-only detection misses this valid idle state. The next test-first refinement
+must validate a complete nonempty all-waiting SDK thread list/current context
+and enabled interrupts before advancing to the next event, without any
+title-PC special case or render-branch patch. Invalid/uninitialized/ready
+states must not qualify. Prior suite totals do not yet cover this refinement.
+
+Refinement RED: nonzero-PC SDK idle does not reach Wii VI1012500 or earlier
+DEC100 with the PC0-only helper. GREEN after validating SDK active headDC,
+tailE0, next+2FC, previous+300, state4, EE/current-thread/context and full RAM
+bounds. Local DOL independently confirms this layout. Synthetic tests cover
+two waiting threads across MEM1/MEM2,28 invalid/startup/list/state cases and6
+in-flight/pending-work guards. No title PC/constants or generated game bytes
+enter the helper or tests. The wall-time test's preemption-sensitive repeated
+poll assertion was removed after review; virtual tests retain deterministic
+same-tick/no-burst assertions.
+
+Final source verification: Release48/48, Debug27/27 pass; separate review and
+scoped fix review have no remaining findings. Host build succeeds6 warnings,
+zero errors (five unchanged CPUContext warnings and one getenv C4996). Actual
+native build succeeds in3.14s with no compiler warnings/errors, interpreter OFF.
+Helper source/generated SHA256:
+7D6FFD00963CE55BC467763A0D858C8D05763997FCFE6F0FB6CA824185EA7768.
+
+Actual e-sdk-idle-20261010 run reaches New Game / Options (_10800.bmp). At75s:
+2364 frames,41514 draws,24 shaders,305823 nonblack pixels, GL error0. This proves
+native startup/wakeup/rendering integration past the previously slow SDK idle,
+not cutscene/save/gameplay completion. User input was requested again for
+New Game -> Save Data A; no blind UI inputs were sent. Preserve this running
+diagnostic/evidence and continue from the confirmed next transition.
+
+Longer-run evidence prevents claiming complete render recovery: e-sdk-idle
+frames/draws hold3592/174138 at175-180s. Unlike the old host-fed170Hz retraces,
+the corrected run advances about145 retraces per five host seconds. Catch-up
+debt nonetheless recurs during heavy CPU/audio work:165-170s23650 ->26200,
+then170-180s261 updates per five seconds reduces debt27200 ->14600, and
+220-225s eight renders resume (frames3600). The215s sample802DF7F4/LR802DF574
+has main thread80452938 running, D4=804CA3E8 and call chain802881AC/80287FA4/
+80286120 ->8012EF74 ->8019DD08. This is neither SDK idle nor proof of a save
+failure. Continue targeted analysis of timer/CPU budget and audio/DSP paths.
+The reviewed single-source/idle milestone is valid, but intermittent rendering,
+confirmed final-build Save Data A, cutscene and gameplay remain outstanding.

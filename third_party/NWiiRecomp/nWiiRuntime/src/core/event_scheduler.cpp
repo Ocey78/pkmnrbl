@@ -104,4 +104,9 @@ void EventScheduler::reset() {
     m_firing = false;
 }
 
+std::optional<uint64_t> EventScheduler::next_deadline() const {
+    if (m_heap.empty()) return std::nullopt;
+    return m_heap.front().due;
+}
+
 } 
