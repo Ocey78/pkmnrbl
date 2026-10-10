@@ -68,27 +68,27 @@ int main(int argc, char** argv) {
     mmio.write16(0xCC005032, 0x4000);
     mmio.write16(0xCC005036, 0x8001);
     for (uint64_t i = 1; i <= 400; ++i) {
-        ctx.inst_count = i * 300 - 1;
+        ctx.inst_count = i * 3600 - 1;
         // Original AX metadata only: size mail then pointer mail. No command
         // list payload is present or needed for the runtime mail protocol.
         mmio.write16(0xCC005000, 0xBABE);
         mmio.write16(0xCC005002, 0x0011);
         mmio.write16(0xCC005000, 0x8001);
         mmio.write16(0xCC005002, 0x2000);
-        ctx.inst_count = i * 300;
+        ctx.inst_count = i * 3600;
         scheduler.advance(ctx, ctx.read_timebase());
     }
     std::cout.rdbuf(previous_output);
     const std::string output = captured.str();
 
     if (mode == "fields") {
-        const std::string metadata = "inst=123456 tb=123456 thread=0x80010000 context=0x80011000 dispatch=0x80015000 in_callback=1";
+        const std::string metadata = "inst=123456 tb=10288 thread=0x80010000 context=0x80011000 dispatch=0x80015000 in_callback=1";
         require(occurrences(output, metadata) == 2,
                 "timing trace must append decimal clock and hex thread/context/dispatch fields to real call and watch lines");
     } else if (mode == "dma") {
         require(occurrences(output, "[DSPDMA]") == 18,
                 "400 DMA completions must log only first16 and every200 (18 lines)");
-        require(output.find("[DSPDMA] seq=200 blocks=1 bytes=32 addr=0x14000 inst=60000 tb=60000") != std::string::npos,
+        require(output.find("[DSPDMA] seq=200 blocks=1 bytes=32 addr=0x14000 inst=720000 tb=60000") != std::string::npos,
                 "sampled DMA completion must identify size, address and same guest clock");
         require(output.find("[DSPDMA] seq=400 ") != std::string::npos &&
                 output.find("[DSPDMA] seq=17 ") == std::string::npos,

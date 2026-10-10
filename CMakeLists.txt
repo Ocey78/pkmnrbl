@@ -117,7 +117,8 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(guest_timing_tests PRIVATE cxx_std_20)
     foreach(case IN ITEMS presentations_120 presentations_240 presentations_120_wii presentations_240_wii
                           idle idle_wii deadlines busy coalescing wall reset masked_idle scheduler_deadlines
-                          sdk_idle sdk_deadlines sdk_invalid sdk_guards)
+                          sdk_idle sdk_deadlines sdk_invalid sdk_guards
+                          cpu_timebase cpu_dec cpu_event cpu_budget cpu_idle_inverse cpu_idle_limits)
         add_test(NAME guest_timing_${case} COMMAND guest_timing_tests ${case})
     endforeach()
     set_tests_properties(guest_timing_wall PROPERTIES ENVIRONMENT "NWII_WALLTB=1")

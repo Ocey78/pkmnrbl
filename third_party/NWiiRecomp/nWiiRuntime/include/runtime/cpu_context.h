@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <vector>
 #include <mutex>
 #include <atomic>
@@ -300,12 +301,12 @@ struct CPUContext {
   
 
   
-  // Instruction count is a virtual clock: the guest gets a fixed number of
-  // instructions per emulated frame and never falls behind. Real elapsed time
-  // (NWII_WALLTB=1) is the hardware-accurate source, but while we run slower
-  // than real time it starves the game — measured on MP7: same input script,
-  // 122 DVD reads with the virtual clock vs 52 with the wall clock. Switch the
-  // default once the drain is fast enough to keep up.
+  // The legacy inst_count is an approximate CPU-cycle charge counter (including
+  // dispatcher charges), not exact retired instructions or cycle-accurate PPC
+  // timing. Both supported CPUs run at 12 times their TB frequency. Keep TB,
+  // DEC and event deadlines in TB ticks, independently of host performance.
+  // NWII_WALLTB retains the existing opt-in elapsed-host-time policy.
+  static constexpr uint64_t cpu_charges_per_tb_tick = 12;
   uint64_t read_timebase() const {
     static const bool wall = std::getenv("NWII_WALLTB") != nullptr;
     if (wall) {
@@ -314,7 +315,18 @@ struct CPUContext {
                         .count();
       return us / 1000000 * tb_freq + us % 1000000 * tb_freq / 1000000;
     }
-    return inst_count;
+    return inst_count / cpu_charges_per_tb_tick;
+  }
+
+  bool advance_virtual_timebase(uint64_t deadline) {
+    static const bool wall = std::getenv("NWII_WALLTB") != nullptr;
+    if (wall || deadline <= inst_count / cpu_charges_per_tb_tick ||
+        deadline > std::numeric_limits<uint64_t>::max() / cpu_charges_per_tb_tick)
+      return false;
+    // Reach the first CPU charge at this future tick. Never round backwards,
+    // lose an existing fractional tick, or overflow an unrepresentable deadline.
+    inst_count = deadline * cpu_charges_per_tb_tick;
+    return true;
   }
 
   

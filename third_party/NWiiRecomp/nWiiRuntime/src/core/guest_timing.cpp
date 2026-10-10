@@ -87,8 +87,7 @@ void service_guest_timers(CPUContext& ctx) {
             if (dec_deadline > now && (!deadline || dec_deadline < *deadline))
                 deadline = dec_deadline;
         }
-        if (deadline && *deadline > now) {
-            ctx.inst_count = *deadline;
+        if (deadline && ctx.advance_virtual_timebase(*deadline)) {
             now = ctx.read_timebase();
         }
     }

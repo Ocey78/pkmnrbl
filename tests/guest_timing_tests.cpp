@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 
 namespace nwii::runtime {
@@ -64,7 +65,7 @@ static void presentations(int pulses, uint64_t frequency = 40500000) {
     Fixture f(frequency);
     int count = 0;
     for (int i = 1; i <= pulses; ++i) {
-        f.ctx.inst_count = frequency * i / pulses;
+        f.ctx.inst_count = frequency * 12 * i / pulses;
         f.ctx.vblank_pending = true;
         f.poll();
         count += f.acknowledge_vi();
@@ -163,28 +164,28 @@ static void scheduler_deadlines() {
 static void coalescing() {
     Fixture f;
     pi_intmr = 0;
-    f.ctx.inst_count = 675000;
+    f.ctx.inst_count = 8100000;
     f.poll();
     require(!(pi_intsr & 0x100), "PI-masked VI must preserve existing suppression");
     pi_intmr = 0x100;
     f.poll();
     require(!(pi_intsr & 0x100), "unmasking at same tick must not replay suppressed VI");
-    f.ctx.inst_count = 1350000;
+    f.ctx.inst_count = 16200000;
     f.ctx.msr = 0;
     f.poll();
     require((pi_intsr & 0x100) != 0, "EE-masked VI must latch for later delivery");
-    f.ctx.inst_count = 2025000;
+    f.ctx.inst_count = 24300000;
     f.poll();
     require(f.acknowledge_vi(), "pending VIs must coalesce into one acknowledgement");
     f.poll();
     require(!f.acknowledge_vi(), "repeated same-tick servicing must not generate extra VI");
     f.ctx.msr = 0x8000;
-    f.ctx.inst_count = 40500000;
+    f.ctx.inst_count = 486000000;
     f.poll();
     require(f.acknowledge_vi(), "late polling must deliver one VI");
     f.poll();
     require(!f.acknowledge_vi(), "late polling must not burst-replay missed retraces");
-    f.ctx.inst_count += 675000;
+    f.ctx.inst_count += 8100000;
     f.poll();
     require(f.acknowledge_vi(), "late polling must schedule the next VI one period later");
 }
@@ -197,6 +198,8 @@ static void wall() {
     f.ctx.write_dec(405000000);
     f.poll();
     require(f.ctx.inst_count == 17, "NWII_WALLTB idle must not change instruction clock");
+    require(!f.ctx.advance_virtual_timebase(90000000) && f.ctx.inst_count == 17,
+            "wall mode must reject direct virtual-time advancement too");
     require(f.ctx.read_timebase() >= 40500000 && f.scheduler.now() >= 40500000,
             "NWII_WALLTB timers must use elapsed wall time");
     require(!f.ctx.dec_expired(), "new wall-time DEC must not expire by virtual idle advance");
@@ -333,19 +336,108 @@ static void sdk_guards() {
     }
 }
 
+static void cpu_timebase() {
+    Fixture f;
+    struct Case { uint64_t charges; uint64_t ticks; };
+    for (const auto& c : {Case{0, 0}, Case{11, 0}, Case{12, 1},
+                         Case{23, 1}, Case{24, 2}}) {
+        f.ctx.inst_count = c.charges;
+        require(f.ctx.read_timebase() == c.ticks,
+                "CPU charges must convert to TB ticks, retaining fractional progress");
+    }
+    f.ctx.inst_count = 486000000;
+    require(f.ctx.read_timebase() == 40500000, "one GameCube CPU second must be one TB second");
+    f.ctx.tb_freq = 60750000;
+    f.ctx.inst_count = 729000000;
+    require(f.ctx.read_timebase() == 60750000, "one Wii CPU second must be one TB second");
+}
+
+static void cpu_dec() {
+    Fixture f;
+    f.ctx.inst_count = 13;
+    f.ctx.write_dec(2);
+    f.ctx.inst_count = 35;
+    require(!f.ctx.dec_expired() && f.ctx.read_dec() == 1,
+            "DEC must not expire before its TB boundary, even from a fractional CPU phase");
+    f.ctx.inst_count = 36;
+    require(f.ctx.dec_expired() && f.ctx.read_dec() == 0,
+            "DEC must expire at its TB boundary after CPU-to-TB conversion");
+}
+
+static void cpu_event() {
+    Fixture f;
+    int fired = 0;
+    f.scheduler.schedule_after(10, [&](CPUContext&, uint64_t) { ++fired; });
+    f.ctx.inst_count = 119;
+    f.poll();
+    require(fired == 0 && f.scheduler.now() == 9, "event must not fire one CPU charge before TB deadline");
+    f.ctx.inst_count = 120;
+    f.poll();
+    require(fired == 1 && f.scheduler.now() == 10, "event must fire at the converted TB deadline");
+}
+
+static void cpu_budget() {
+    Fixture f(60750000);
+    int fired = 0;
+    f.scheduler.schedule_recurring(303750, [&](CPUContext&, uint64_t) { ++fired; });
+    f.ctx.inst_count = 729000;
+    f.poll();
+    require(fired == 0 && f.ctx.read_timebase() == 60750,
+            "one millisecond of CPU charges must not exhaust a five-millisecond event budget");
+    f.ctx.inst_count = 3645000;
+    f.poll();
+    require(fired == 1, "five milliseconds of CPU charges must deliver the recurring event once");
+}
+
+static void cpu_idle_inverse() {
+    Fixture f;
+    f.ctx.pc = 0;
+    f.ctx.inst_count = 13;
+    initialize_guest_timers(f.ctx);
+    f.ctx.write_dec(1);
+    f.poll();
+    require(f.ctx.inst_count == 24 && f.ctx.read_timebase() == 2 && f.ctx.dec_expired(),
+            "idle must reach the first CPU charge at the earliest TB deadline");
+    f.poll();
+    require(f.ctx.inst_count == 24, "pending DEC must stop a second idle advance");
+    f.ctx.inst_count = 25;
+    require(!f.ctx.advance_virtual_timebase(2) && f.ctx.inst_count == 25,
+            "same-tick idle deadline must preserve fractional CPU charges");
+    require(!f.ctx.advance_virtual_timebase(1) && f.ctx.inst_count == 25,
+            "past idle deadline must not move the clock backwards");
+}
+
+static void cpu_idle_limits() {
+    Fixture f;
+    f.ctx.pc = 0;
+    f.scheduler.reset();
+    const uint64_t limit = std::numeric_limits<uint64_t>::max() / 12;
+    bool fired = false;
+    f.scheduler.schedule_after(limit + 1, [&](CPUContext&, uint64_t) { fired = true; });
+    f.poll();
+    require(f.ctx.inst_count == 0 && f.scheduler.now() == 0 && !fired,
+            "unrepresentable idle deadline must not overflow, change time, or fire");
+    f.scheduler.reset();
+    f.scheduler.schedule_after(limit, [&](CPUContext&, uint64_t) { fired = true; });
+    f.poll();
+    require(f.ctx.inst_count == std::numeric_limits<uint64_t>::max() - 3 &&
+            f.ctx.read_timebase() == limit && fired,
+            "largest representable TB deadline must advance without overflow");
+}
+
 static void reset() {
     Fixture f;
     bool stale_fired = false;
     f.scheduler.schedule_after(10, [&](CPUContext&, uint64_t) { stale_fired = true; });
-    f.ctx.inst_count = 100;
+    f.ctx.inst_count = 1200;
     initialize_guest_timers(f.ctx);
     require(f.scheduler.now() == 100, "timer reinitialization must reset and synchronize scheduler to guest TB");
     f.poll();
     require(!stale_fired, "timer reinitialization must discard events from the previous runtime");
-    f.ctx.inst_count = 675000;
+    f.ctx.inst_count = 8100000;
     f.poll();
     require(!f.acknowledge_vi(), "timer reinitialization must remove the old VI deadline");
-    f.ctx.inst_count = 675100;
+    f.ctx.inst_count = 8101200;
     f.poll();
     require(f.acknowledge_vi(), "reinitialized runtime must register VI relative to its current TB");
     f.poll();
@@ -372,6 +464,12 @@ int main(int argc, char** argv) {
     else if (mode == "sdk_deadlines") sdk_deadlines();
     else if (mode == "sdk_invalid") sdk_invalid();
     else if (mode == "sdk_guards") sdk_guards();
+    else if (mode == "cpu_timebase") cpu_timebase();
+    else if (mode == "cpu_dec") cpu_dec();
+    else if (mode == "cpu_event") cpu_event();
+    else if (mode == "cpu_budget") cpu_budget();
+    else if (mode == "cpu_idle_inverse") cpu_idle_inverse();
+    else if (mode == "cpu_idle_limits") cpu_idle_limits();
     else require(false, "unknown timing case");
     std::cout << "PASS: guest timing " << mode << '\n';
 }

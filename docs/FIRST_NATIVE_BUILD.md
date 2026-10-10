@@ -633,6 +633,40 @@ automated input was sent. No Save Data A, cutscene or gameplay success is claime
 for this diagnostic. Resume by examining its completed log, then rebuilding and
 obtaining a confirmed New Game transition when window input is available.
 
+### CPU/TB separation and next native instruction blocker (2026-10-10)
+
+The raw execution charge counter is now converted to TB ticks at12:1, with
+checked inverse conversion when advancing idle to an event/DEC deadline.
+This is an approximate CPU-charge policy, not cycle-accurate PPC timing.
+Event periods, DSP behavior, wall-time mode and title code were not changed.
+Six new behavioral regressions failed before the fix; Debug38/38 and
+Release59/59 now pass. Independent review found no outstanding issues.
+The full native interpreter-OFF rebuild succeeded in8m56s with499 warnings
+and zero errors; source/generated runtime hashes matched. Host Release build
+had531 warnings, zero errors. Do not describe these builds as warning-free.
+
+Private e-cpu-timebase-20261010.log/.err records the user's confirmed New Game
+and Save Data A selection. Unlike the prior frozen rendering counter, the
+black loading phase continues drawing:80s1458frames/29669draws;85s1473/29684;
+95s1502/29713. At80-85s, fifteen updates and fifteen render entries correspond
+to0.25333 guest seconds. Catch-up debt is not growing in this interval.
+The busy PC802E31E8..802E335C belongs to decompression, not scheduler idle.
+No DEC force-expired marker appeared. These facts do NOT establish a completed
+cutscene, gameplay, persistent save or accurate audio.
+
+The process then exits1 on a missing AOT instruction. The diagnostic reports
+stale function-entry PC802A3970; the actual unsupported instruction is at
+802A3978, opcode1000000C, indexed paired quantized load (psq_lx). The emitter
+supports immediate psq_l/psq_st but lacks the indexed op4 variants. Next:
+add an original synthetic AOT regression for indexed loads/stores and their
+update forms, prove failure, emit native calls to the existing quantization
+helpers with correct effective addresses, then regenerate/rebuild and rerun
+the same Save Data A transition with the interpreter OFF.
+
+Live window capture still failed twice (FrameArrived/window capture timeout);
+the user supplied the menu input. No blind automated input was sent. All
+traces/screenshots/executable and Nintendo-derived generated output stay local.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.
