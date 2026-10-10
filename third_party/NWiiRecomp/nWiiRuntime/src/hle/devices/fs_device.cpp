@@ -16,17 +16,18 @@ static std::vector<VNandFile> g_vnand_files;
 static bool g_vnand_init = false;
 
 static std::vector<uint8_t> make_sysconf() {
-    std::vector<uint8_t> sc(0x4000, 0xFF);
-    sc[0]='S'; sc[1]='C'; sc[2]='v'; sc[3]='1'; sc[4]='5';
-    sc[5] = 1;
-    sc[6] = 0; sc[7] = 1;
-    uint8_t key[] = "IPL.AR";
-    uint8_t val[] = { 0, 4, 'N','T','S','C' };
-    int off = 8;
-    sc[off++] = 0x02;
-    sc[off++] = (uint8_t)(sizeof(key)-1);
-    for (auto c : key) if(c) sc[off++] = c;
-    for (auto b : val) sc[off++] = b;
+    // Original synthetic SCv0 settings, not a copied NAND file. Offsets are
+    // big-endian and include the terminal data offset. Byte items encode
+    // (type 3 << 5) | (name length - 1), followed by name and one value.
+    std::vector<uint8_t> sc(0x4000, 0);
+    const uint8_t header_and_items[] = {
+        'S', 'C', 'v', '0', 0, 2,
+        0, 0x0C, 0, 0x14, 0, 0x1D,
+        0x65, 'I', 'P', 'L', '.', 'A', 'R', 0, // 4:3
+        0x66, 'I', 'P', 'L', '.', 'L', 'N', 'G', 1 // English
+    };
+    std::copy(std::begin(header_and_items), std::end(header_and_items), sc.begin());
+    sc[0x3FFC] = 'S'; sc[0x3FFD] = 'C'; sc[0x3FFE] = 'e'; sc[0x3FFF] = 'd';
     return sc;
 }
 

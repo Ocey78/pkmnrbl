@@ -20,10 +20,10 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 A native Windows executable links with Visual Studio 2022 x64. The local
 interpreter-OFF build has progressed through resource loading. The Release
-suite now contains 23 passing tests, including ES content and real GPU tests.
-Earlier milestones rendered a white field and small central graphic. With real
-content available, the current boot reaches a TPL assertion and halts before
-draws: PC 802B1890, LR 802B513C. There is still NO verified title screen,
+suite now contains 24 passing tests, including ES content and real GPU tests.
+The current boot renders the title-owned English Wii Remote instruction screen
+and advances into loading. Correct boot identity resolved the TPL assertion.
+There is still NO verified title screen,
 input navigation or interpreter-free release. See the latest section below;
 the older sections are chronological evidence, not the current blocker.
 
@@ -252,16 +252,16 @@ build/logs/native-only-long.log, native-only-long.err and native-only-long_4800.
 
 ### Work still required
 
-1. Advance beyond the first visible central graphic to a recognizable title
+1. Advance beyond the English Wii Remote instruction/loading screens to a recognizable title
    screen. Trace guest thread/queue and resource state; inspect rendering
    only where evidence shows a discrepancy. Monitor for new GL errors,
    validate TEV/texture state and EFB copy/clear ordering, and keep
    using failing regressions followed by real-title runs.
-2. Trace the newly reached TPL assertion at guest 8033E1EC (TPL.c line 25).
-   Correct ES content reads now return the 32-byte archive header, 2944-byte
-   metadata region and a 716800-byte resource. Determine the exact failed
-   TPL condition and trace its input through archive lookup/decompression.
-   Do not bypass the assertion or assume a renderer failure.
+2. Capture a longer boot with valid content and WPSE low-memory identity.
+   Identify the next exact wait or failure from code before changing behavior.
+   The former TPL assertion is resolved: a zero boot game code selected the
+   wrong region and omitted the localized texture archive. Do not reopen it
+   unless a fresh trace proves regression.
 3. Re-run bounded real title boots to verify the cache-loop runaway does not
    recur. Keep PC/LR/CTR/context ownership and rendering evidence.
 4. Connect and verify one native input source through the title's actual Wii
@@ -320,6 +320,53 @@ the first valid TPL. The required header magic is 0020AF30.
 
 Previous milestone d38529a Windows CI succeeded:
 https://github.com/Ocey78/pkmnrbl/actions/runs/35294073101
+
+### Title-owned instruction screen and boot identity (2026-10-10)
+
+The ES milestone f23f080 passed Windows CI:
+https://github.com/Ocey78/pkmnrbl/actions/runs/38025262567
+
+The null texture was wii_remote_title.tpl. Tracing the resource path backwards
+proved that 8012C660 chooses ja_JP for region 0, en_US for region 1, and only
+consults the system-language locale getter for region 2. Guest 802B2EA0 checks
+the optional disc game code at 80003194, then falls back to the WiiWare boot
+game code at 80003180. Both were zero. The copied ID at 804B9468 remained four
+zero bytes; the region getter's unknown-character branch selected Japanese.
+This was not a regression of Config/ES identity, which already used WPSE.
+
+The WPSE boot adapter now writes 57505345 at 80003180 only after arena validation
+succeeds. It leaves 80003194 and neighboring words intact. A real-MMU regression
+failed on the missing identity first, then passed with physical/cached byte
+order, neighbors and invalid-layout preservation checks.
+
+Separately, the original synthetic SYSCONF had invalid magic, count, offsets,
+record encoding and no footer. It now has a valid 16-KiB SCv0 document, two BYTE
+items IPL.AR=0 (4:3), IPL.LNG=1 (English), and SCed footer. The new test failed at
+the old header and now independently parses records through the real FS/MMU;
+it also checks chunked reads, EOF/tail preservation and rewind. These are
+original runtime-generated defaults, not imported NAND data. The format was
+cross-checked with local guest parsing and
+[libogc configuration support](https://github.com/devkitPro/libogc/blob/master/libogc/conf.c).
+The separate post-sysconf control run still selected Japanese and panicked,
+which isolates the boot-ID correction as the resource-selection fix.
+
+With boot identity installed, the failing texture now resolves to 9003FBC0,
+other English instruction textures load, and the screenshot visibly reads
+"How to Hold the Wii Remote" with the controller illustration. The 35-second
+interpreter-OFF run exited 0, stderr was empty, no native-only coverage guard
+fired, and every rendering sample reported GL error 0. This is the first
+verified substantial title-owned screen in this content-backed boot, not the
+title menu. Loading continues afterward; no input/menu success is claimed.
+Private evidence: region-trace-20261010.log, post-sysconf-20261010.log,
+post-boot-id-20261010.log/.err and post-boot-id-20261010_1200.bmp, all in build/logs.
+Temporary generated-source lookup logging was removed after collecting evidence.
+
+Verification: all 24 Release CTests and 8 asset-free Debug CTests pass; GPU tests
+actually execute. Synthetic generated-project export and repository policy
+tests pass. Independent review found no actionable issue in these two changes.
+Existing FS seek/read hardening and setting.txt serialization remain unchanged;
+this milestone does not claim complete NAND compatibility. Existing upstream
+compiler warnings remain.
 
 ## Reproduction
 

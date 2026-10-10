@@ -36,7 +36,7 @@
 - [x] Implement the bounded read-only service and session ownership; cover close, invalid handle/index/vector/span, SET/CUR/END signed seeks, malformed/wrong-title TMD, missing/truncated content and concurrent sessions with tests.
 - [x] Run all Release CTests; ensure asset-free Debug CI builds/runs the new test.
 - [x] Sync runtime changes to ignored generated runtime, rebuild interpreter-OFF PokemonRumble.exe, run bounded real title and inspect output. Record the next exact blocker without claiming a title screen prematurely.
-- [ ] Independent code review, repository policy/staged diff checks, commit and push redistributable milestone; continue trace-driven work.
+- [x] Independent code review, repository policy/staged diff checks, commit and push redistributable milestone; continue trace-driven work.
 
 ## Evidence ledger
 
@@ -46,3 +46,4 @@
 - RED: first header read returned0 instead of32. GREEN: 23/23 Release, 7/7 Debug; standalone synthetic export and repository-policy tests pass. Existing upstream compiler warnings remain.
 - Real title: header32, metadata2944 and resource716800 reads succeed. New OSPanic from TPL.c line25; first texture pointer valid, second null. No title-screen claim; bounded launcher killed the halted process.
 - Independent review: no remaining actionable findings after production source-list registration; zero-length reads intentionally return -1017, with explicit test. Cryptographic authentication/NAND installation and earlier raw-IPC parsing remain outside this bounded service and are not claimed fixed.
+- Committed/pushed f23f080; Windows CI 38025262567 succeeded.

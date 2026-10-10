@@ -69,6 +69,14 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(es_content_tests PRIVATE cxx_std_20)
     add_test(NAME es_content COMMAND es_content_tests)
 
+    add_executable(sysconf_tests
+        tests/sysconf_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/devices/fs_device.cpp)
+    target_include_directories(sysconf_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(sysconf_tests PRIVATE cxx_std_20)
+    add_test(NAME sysconf COMMAND sysconf_tests)
+
     add_executable(ai_mmio_tests
         tests/ai_mmio_tests.cpp
         third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ai.cpp

@@ -45,11 +45,24 @@ void test_installs_wpse01_boot_contract_into_real_nwii_mmu() {
     context.mmu.mem1.at(0x3114U) = 0xD6U;
     context.mmu.mem1.at(0x3157U) = 0x9EU;
     context.mmu.mem1.at(0x315CU) = 0xE9U;
+    context.mmu.write32(0x8000317CU, 0x12345678U);
+    context.mmu.write32(0x80003184U, 0x9ABCDEF0U);
+    context.mmu.write32(0x80003194U, 0x10203040U);
 
     std::string error;
     require(install_wpse01_boot_memory(context, 0x81000000U, 0x81700000U, error),
             "the validated WPSE01 boot contract must install");
     require(error.empty(), "a successful boot-memory installation must not report an error");
+
+    require(context.mmu.read32(0x80003180U) == 0x57505345U,
+            "WiiWare boot game code must identify WPSE for guest region selection");
+    require(context.mmu.read8(0x3180U) == 'W' && context.mmu.read8(0x3181U) == 'P' &&
+                context.mmu.read8(0x3182U) == 'S' && context.mmu.read8(0x3183U) == 'E',
+            "physical RAM alias must expose big-endian WPSE bytes");
+    require(context.mmu.read32(0x8000317CU) == 0x12345678U &&
+                context.mmu.read32(0x80003184U) == 0x9ABCDEF0U &&
+                context.mmu.read32(0x80003194U) == 0x10203040U,
+            "identity installation must preserve adjacent fields and disc-ID override");
 
     require(context.mmu.read32(0x80000020U) == 0x0D15EA5EU,
             "boot magic must use the literal WPSE01 value");
@@ -86,11 +99,22 @@ void test_installs_wpse01_boot_contract_into_real_nwii_mmu() {
             "the byte after GDDR vendor code must remain untouched");
 }
 
+void test_invalid_layout_preserves_existing_identity() {
+    nwii::runtime::CPUContext context;
+    context.mmu.write32(0x80003180U, 0x12345678U);
+    std::string error;
+    require(!install_wpse01_boot_memory(context, 0x81700000U, 0x81000000U, error),
+            "reversed MEM1 bounds must fail validation");
+    require(context.mmu.read32(0x80003180U) == 0x12345678U,
+            "failed boot installation must not overwrite title identity");
+}
+
 }  // namespace
 
 int main() {
     try {
         test_installs_wpse01_boot_contract_into_real_nwii_mmu();
+        test_invalid_layout_preserves_existing_identity();
         std::cout << "PASS: installs WPSE01 boot contract into real NWii MMU\n";
         return 0;
     } catch (const std::exception& exception) {
