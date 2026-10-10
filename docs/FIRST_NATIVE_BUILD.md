@@ -1,6 +1,6 @@
 # First native build: status and remaining work
 
-Updated 2026-09-17. Nintendo files, generated title code, private traces and
+Updated 2026-10-10. Nintendo files, generated title code, private traces and
 the locally linked game executable must never be uploaded.
 
 ## Fixed architecture and identity
@@ -10,7 +10,7 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 - Title: WPSE01_01; game ID: WPSE; title ID: 0001000157505345.
 - main.dol SHA-1: fd9a2c00c97e420a42355e2c27f3dc0ebbd3d8f9.
-- Entry: 0x80004050; 14,373 functions regenerated on 2026-09-15.
+- Entry: 0x80004050; latest AOT discovery contains 14,374 functions.
 - NWiiRecomp base: 595f176f1d24cc54ff2e8389feed12d7fb553cc2.
 - Legal inputs stay in ignored local/WPSE01_01/.
 - AOT output stays in ignored generated/WPSE01_01/.
@@ -18,15 +18,14 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 ## Verified milestones and limits
 
-A native Windows executable has linked with both Zig and the now-installed
-Visual Studio 2022 x64 compiler. The latest MSVC executable includes the AOT
-syscall correction and imported renderer diagnostics. Nine Release CTests
-pass: memory layout, real-MMU boot, async IPC, identity, AI counter, renderer
-diagnostic latch, and three compiled synthetic AOT syscall cases. The
-standalone synthetic generated-project export regression also passed.
-
-There is still NO verified title screen, visible title-owned frame, input
-navigation or interpreter-free release. Draw submissions are not pixels.
+A native Windows executable links with Visual Studio 2022 x64. The local
+interpreter-OFF build has progressed through resource loading. The Release
+suite now contains 23 passing tests, including ES content and real GPU tests.
+Earlier milestones rendered a white field and small central graphic. With real
+content available, the current boot reaches a TPL assertion and halts before
+draws: PC 802B1890, LR 802B513C. There is still NO verified title screen,
+input navigation or interpreter-free release. See the latest section below;
+the older sections are chronological evidence, not the current blocker.
 
 Preserve the solved boot milestones:
 
@@ -258,13 +257,11 @@ build/logs/native-only-long.log, native-only-long.err and native-only-long_4800.
    only where evidence shows a discrepancy. Monitor for new GL errors,
    validate TEV/texture state and EFB copy/clear ordering, and keep
    using failing regressions followed by real-title runs.
-2. Verify ES content service. Current ES open 09/read 0A/seek 23 return
-   success without serving content, and read buffers are zeroed. The launch
-   directory contains only main.dol; sibling local/WPSE01_01 contains seven
-   local app files and a TMD. Trace requested indices and buffers, validate
-   the local content mapping/size/hash, then add synthetic open/read/seek/close,
-   EOF, invalid handle and bounds tests before serving local content.
-   Do not assume every black frame has this cause.
+2. Trace the newly reached TPL assertion at guest 8033E1EC (TPL.c line 25).
+   Correct ES content reads now return the 32-byte archive header, 2944-byte
+   metadata region and a 716800-byte resource. Determine the exact failed
+   TPL condition and trace its input through archive lookup/decompression.
+   Do not bypass the assertion or assume a renderer failure.
 3. Re-run bounded real title boots to verify the cache-loop runaway does not
    recur. Keep PC/LR/CTR/context ownership and rendering evidence.
 4. Connect and verify one native input source through the title's actual Wii
@@ -277,6 +274,52 @@ build/logs/native-only-long.log, native-only-long.err and native-only-long_4800.
 6. Run all MSVC tests, synthetic export, policy tests and Windows CI; prove a
    clean checkout rebuilds with separately supplied legal title data.
    Never publish the resulting game executable or translated source.
+
+### Local ES content service (2026-10-10)
+
+Fresh baseline call tracing proved all five opens requested index 5. Each
+32-byte header read previously returned zero. The guest takes header +0xC
+as the archive data offset, rounds it to 32 bytes, seeks to zero and reads
+that metadata region. Zeroing the header caused a zero-length second read,
+which the guest wrapper rejects before issuing IPC. This was a real content
+failure, not a scheduler wait. The local index-5 file's size and SHA1 were
+independently checked against its TMD before use; both matched.
+
+ES commands 09, 0A, 23 and 0B now implement read-only open/read/seek/close.
+The service finds title.tmd or the configured title-ID-named TMD in game_dir
+or its parent, maps indices to content IDs, and reads ID-named .app files.
+Only already-decrypted local files are supported. It validates TMD structure,
+title identity, file length, complete guest RAM spans, and session ownership;
+it does not authenticate signatures or content hashes at runtime. Padding
+beyond logical EOF is not returned. This is not a NAND installer/decryptor
+or shared-content resolver. Existing non-content ES stubs remain unchanged.
+The command/vector contract was cross-checked against the local guest wrappers
+and [libogc ES functions](https://github.com/devkitPro/libogc/blob/master/libogc/es.c).
+
+The synthetic regression failed before implementation at the first header
+read (expected 32, got 0). It now passes through the real IOS kernel/device/MMU,
+with index != ID, signed seeks, independent handles, EOF/tail preservation,
+session-close cleanup, malformed vectors/TMDs and invalid memory bounds.
+All 23 Release tests passed, including actual GPU execution. The new ES test
+is also part of the asset-free Debug target used by Windows CI; all seven
+Debug tests passed locally after a fresh configuration/build.
+
+The rebuilt interpreter-OFF title now returns 32, 2944 and 716800 bytes for
+the traced reads. It then reaches OSPanic from TPL.c line 25 and halts at
+802B1890 / LR 802B513C, with interrupts disabled (MSR 1032), 212 submissions,
+zero draws/shaders and black EFB. The bounded launcher terminated the hung
+process at 45 seconds; this was not a clean diagnostic exit or title-screen
+success. Chain: 8033E1EC, 802AEF6C, 802AC380, 802A722C, 802A6FE8, 802A668C,
+801CF1F0, 801CE6CC, 801CCC00, 801182C0, 8012C6B4, 8012FA9C, 8019EACC.
+Private evidence: build/logs/es-baseline-20261010.log and
+build/logs/post-es-20261010.log, .err, and BMP. Keep these local.
+Follow-up trace tpl-trace-20261010.log proves TPL unpack is called twice from
+802AEF6C: first with r3=901A50C0 (accepted), then with r3=0 (assertion).
+The next investigation is the resource lookup returning null, not corrupting
+the first valid TPL. The required header magic is 0020AF30.
+
+Previous milestone d38529a Windows CI succeeded:
+https://github.com/Ocey78/pkmnrbl/actions/runs/35294073101
 
 ## Reproduction
 

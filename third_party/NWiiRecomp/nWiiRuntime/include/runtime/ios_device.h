@@ -20,6 +20,10 @@ struct IpcRequest {
     uint32_t cmd;      
     uint32_t fd;
 
+    // Filled by IOSKernel, not by the guest. Distinguishes device sessions
+    // even when an outer IOS descriptor is closed and reused.
+    int32_t device_fd = 0;
+
     
     
     uint32_t req_addr = 0;

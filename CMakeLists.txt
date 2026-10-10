@@ -58,6 +58,17 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
     target_compile_features(title_identity_tests PRIVATE cxx_std_20)
     add_test(NAME title_identity COMMAND title_identity_tests)
+
+    add_executable(es_content_tests
+        tests/es_content_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/devices/es_content.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/devices/es_device.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/ios_kernel.cpp)
+    target_include_directories(es_content_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(es_content_tests PRIVATE cxx_std_20)
+    add_test(NAME es_content COMMAND es_content_tests)
+
     add_executable(ai_mmio_tests
         tests/ai_mmio_tests.cpp
         third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ai.cpp

@@ -66,6 +66,7 @@ add_library(nwiiruntime STATIC
     src/hle/devices/stm_device.cpp
     src/hle/devices/usb_device.cpp
     src/hle/devices/es_device.cpp
+    src/hle/devices/es_content.cpp
 )
 
 # A standalone recompiler export copies the port-owned boot sources here.  The

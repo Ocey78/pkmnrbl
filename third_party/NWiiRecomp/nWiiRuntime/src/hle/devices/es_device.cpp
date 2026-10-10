@@ -1,12 +1,21 @@
 ﻿#include "runtime/devices.h"
 #include "runtime/ios_kernel.h"
 #include "runtime/config.h"
+#include "runtime/es_content.h"
 #include <iostream>
 
 namespace nwii::runtime::devices {
 
 class ESDevice : public IDevice {
+    ESContent content_;
 public:
+    int32_t open(CPUContext&, const std::string&, uint32_t) override {
+        return content_.open_session();
+    }
+    int32_t close(CPUContext&, uint32_t session) override {
+        content_.close_session(static_cast<int32_t>(session));
+        return IPC_OK;
+    }
     const char* get_name() const override { return "/dev/es"; }
     bool matches_path(const std::string& path) const override {
         return path == get_name();
@@ -17,6 +26,9 @@ public:
         return IPC_OK;
     }
     int32_t ioctlv(CPUContext& ctx, const IpcRequest& req) override {
+        if (req.ioctl_cmd == 9 || req.ioctl_cmd == 10 ||
+            req.ioctl_cmd == 11 || req.ioctl_cmd == 0x23)
+            return content_.ioctlv(ctx, req);
         std::cout << "[ES] ioctlv cmd=0x" << std::hex << req.ioctl_cmd << std::dec 
                   << " in=" << req.arg_cnt_in << " out=" << req.arg_cnt_out << std::endl;
 
