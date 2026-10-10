@@ -35,6 +35,16 @@ uint32_t g_watch_addr = []() -> uint32_t {
 
 extern CPUContext *g_ctx_ptr;
 
+static void trace_timing_metadata(CPUContext& ctx) {
+  static const bool enabled = std::getenv("NWII_TIMING_TRACE") != nullptr;
+  if (!enabled) return;
+  std::cout << " inst=" << std::dec << ctx.inst_count << " tb=" << ctx.read_timebase()
+            << " thread=0x" << std::hex << ctx.mmu.read32(0x800000E4)
+            << " context=0x" << ctx.mmu.read32(0x800000D4)
+            << " dispatch=0x" << ctx.dispatch_saved_ctx
+            << " in_callback=" << std::dec << ctx.in_callback;
+}
+
 void watch_hit(uint32_t addr, uint32_t value, int width) {
   CPUContext *c = g_ctx_ptr;
   std::cout << "[Watch] write" << width << " 0x" << std::hex << addr << " = 0x"
@@ -49,6 +59,7 @@ void watch_hit(uint32_t addr, uint32_t value, int width) {
         std::cout << " r" << std::dec << r << "=0x" << std::hex << c->gpr[r];
       std::cout << " r3=0x" << c->gpr[3] << " r4=0x" << c->gpr[4];
     }
+    trace_timing_metadata(*c);
   }
   std::cout << std::dec << "\n";
 }
@@ -82,8 +93,9 @@ void trace_call(uint32_t func_addr, CPUContext &ctx) {
   std::cout << "[CALL] 0x" << std::hex << func_addr << " lr=0x" << ctx.lr
             << " r3=0x" << ctx.gpr[3] << " r4=0x" << ctx.gpr[4] << " r5=0x"
             << ctx.gpr[5] << " r6=0x" << ctx.gpr[6] << " r7=0x" << ctx.gpr[7]
-            << " r13=0x" << ctx.gpr[13] << " r1=0x" << ctx.gpr[1]
-            << std::dec << "\n";
+            << " r13=0x" << ctx.gpr[13] << " r1=0x" << ctx.gpr[1];
+  trace_timing_metadata(ctx);
+  std::cout << std::dec << "\n";
 }
 } 
 

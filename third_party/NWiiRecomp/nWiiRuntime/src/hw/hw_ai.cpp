@@ -1,6 +1,8 @@
 ﻿#include "runtime/hw/hw.h"
 
 #include <cstdint>
+#include <cstdlib>
+#include <iostream>
 
 namespace nwii::runtime {
 extern uint64_t get_os_time();
@@ -70,6 +72,7 @@ void ai_write(uint32_t addr, uint32_t val) {
 
     switch (offset) {
     case 0x00: {
+        const uint32_t old_control = ai_cr;
         const bool was_playing = (ai_cr & AI_CONTROL_PSTAT) != 0;
         const bool will_play = (val & AI_CONTROL_PSTAT) != 0;
         const uint32_t current_counter = ai_current_sample_counter(now);
@@ -91,6 +94,15 @@ void ai_write(uint32_t addr, uint32_t val) {
         }
 
         ai_cr = (val & ~AI_CONTROL_AIINT) | interrupt_status;
+        static const bool timing_trace = std::getenv("NWII_TIMING_TRACE") != nullptr;
+        if (timing_trace) {
+            std::cout << "[AIControl] addr=0x" << std::hex << addr
+                      << " old=0x" << old_control << " written=0x" << val
+                      << " new=0x" << ai_cr
+                      << " old_rate_bits=0x" << (old_control & 0x42)
+                      << " new_rate_bits=0x" << (ai_cr & 0x42)
+                      << std::dec << "\n";
+        }
         break;
     }
 

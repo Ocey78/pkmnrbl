@@ -268,3 +268,28 @@ has main thread80452938 running, D4=804CA3E8 and call chain802881AC/80287FA4/
 failure. Continue targeted analysis of timer/CPU budget and audio/DSP paths.
 The reviewed single-source/idle milestone is valid, but intermittent rendering,
 confirmed final-build Save Data A, cutscene and gameplay remain outstanding.
+
+### Active audio workload measurement
+
+Milestone8c3098f is pushed and its Windows CI run38032976538 passed. The
+e-sdk-idle run ended normally at its configured600-second limit, not a crash.
+No new Save Data A confirmation was received for that executable.
+
+Read-only mapping identifies worker job802892C0 and its completion mutex
+unlock802BA020 (LR802893A8). The worker then calls receive802B95B0 with
+LR80289170 and queue8044E3A0;8044E3A8 is the receive-wait subqueue, not the
+queue base. The job's own two timer reads use802BD080 with LR80289314/8028936C.
+DMA setup802D9F30 receives buffer address inr3 and byte length inr4.
+
+Next measurement: opt-in call/watch raw-counter and TB values, current thread/
+context and interrupt-dispatch state; bounded DMA/AX mailbox scalar metadata
+and raw AI control writes. Do not read or publish command-list/asset contents.
+Compare completed-job cost and cadence before changing the clock or DSP model.
+
+Primary independent references: devkitPro/libogc gc/tuxedo/ppc/clock.h defines
+CPU-to-TB ratio12 for both platforms; libogc/audio.c distinguishes stream-rate
+bit1 from DSP-DMA-rate bit6 and programs32-byte DMA blocks. The runtime raw
+counter is only approximate execution work, not an exact cycle counter, so
+the hardware ratio alone is not evidence of the current stall's cause.
+Likewise fixed200Hz DMA and missing AX command processing remain hypotheses
+until the actual programmed length/rate and completed workload are measured.

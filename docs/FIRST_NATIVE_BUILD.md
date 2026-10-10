@@ -594,6 +594,45 @@ proven duplicate source and real-idle progress, NOT the complete black-screen
 problem. Next discriminate timer/instruction budget from missing audio/DSP
 behavior before changing either. Save Data A on this final build is unconfirmed.
 
+### Audio workload diagnostic checkpoint
+
+The8c3098f Windows CI run38032976538 passed. Its600-second real-title trace
+ended at the configured limit with a normal shutdown, not a crash.
+
+NWII_TIMING_TRACE now adds opt-in raw execution-counter/TB/thread/context/
+interrupt-state fields to selected call/watch traces, plus bounded DMA and AX
+mail scalar metadata and raw AI control writes. It does not execute AX commands,
+change timer rates or read/log command-list contents. First16 and every200 DMA/
+mail events are logged; no new output or guest reads occur when disabled.
+Original behavioral tests failed first for four enabled contracts; all five
+contracts then passed. Full Release53/53 and Debug32/32 pass; independent review
+has no blocking findings. Release host build had26 warnings, zero errors;
+Debug build and actual runtime-only native rebuild had zero warnings/errors.
+The title rebuild remains interpreter OFF and took3.44seconds.
+
+Private current run: build/logs/e-audio-budget-20261010.log/.err, bounded240s.
+At90s it was still rendering (2528frames/63169draws). Actual DMA is12blocks,
+384bytes, with AIcontrol0x60 selecting32kHz DMA. That is96 stereo frames or
+3ms nominal duration, whereas the current runtime schedules5ms. The existing
+timer is therefore slower, not faster, than the programmed buffer cadence;
+do not label it the source of excess interrupts without further evidence.
+Early completed audio jobs cost355 raw counts median; the heavy phase still
+needs measurement. Raw deltas include intervening execution/idle advances.
+
+Next: analyze completed audio job802892C0 through802BA020/LR802893A8 and the
+core timer pair802BD080/LR80289314/8028936C. Separate idle/interrupt/other-thread
+time before comparing cost with DMA deadlines and frame catch-up debt. If a
+clock-unit error is confirmed, add failing conversion/DEC/event/idle-inverse
+tests before changing it; preserve wall mode and guard multiplication overflow.
+Hardware CPU/TB ratio12 is not a claim that every translated instruction costs
+exactly one cycle. AX voice processing and proper DMA cadence remain separate
+unfinished runtime work. Do not force rendering or skip the title's own loop.
+
+Live Computer Use reported a physical-Escape stop on the new window; no further
+automated input was sent. No Save Data A, cutscene or gameplay success is claimed
+for this diagnostic. Resume by examining its completed log, then rebuilding and
+obtaining a confirmed New Game transition when window input is available.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.

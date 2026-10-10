@@ -122,6 +122,25 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     endforeach()
     set_tests_properties(guest_timing_wall PROPERTIES ENVIRONMENT "NWII_WALLTB=1")
 
+    add_executable(timing_trace_tests
+        tests/timing_trace_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/core/os_hle_stubs.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/core/event_scheduler.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_dsp.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_ai.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/hw_vi.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hw/mmio_dispatcher.cpp)
+    target_include_directories(timing_trace_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(timing_trace_tests PRIVATE cxx_std_20)
+    foreach(case IN ITEMS fields dma mail ai)
+        add_test(NAME timing_trace_${case} COMMAND timing_trace_tests ${case})
+        set_tests_properties(timing_trace_${case} PROPERTIES ENVIRONMENT "NWII_TIMING_TRACE=1")
+    endforeach()
+    add_test(NAME timing_trace_disabled COMMAND timing_trace_tests disabled)
+    set_tests_properties(timing_trace_disabled PROPERTIES
+        ENVIRONMENT_MODIFICATION "NWII_TIMING_TRACE=unset:")
+
     add_executable(renderer_diagnostics_tests
         tests/renderer_diagnostics_tests.cpp
         third_party/NWiiRecomp/nWiiRuntime/src/hle/gx/renderer_diagnostics.cpp)

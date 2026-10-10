@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <cstdlib>
 #include <mutex>
 #include <vector>
 
@@ -37,6 +38,30 @@ static uint16_t ar_refresh = 0;
 
 
 static void dsp_update_pi();
+
+// Diagnostic metadata only; neither command-list nor audio contents are logged.
+static uint64_t s_timing_dma_sequence = 0;
+static uint64_t s_timing_ax_sequence = 0;
+static uint32_t s_timing_ax_pending_size_mail = 0;
+static uint32_t s_timing_ax_size_mail = 0;
+static uint32_t s_timing_ax_addr = 0;
+
+static bool timing_trace_enabled() {
+    static const bool enabled = std::getenv("NWII_TIMING_TRACE") != nullptr;
+    return enabled;
+}
+
+static bool timing_trace_sample(uint64_t sequence) {
+    return sequence <= 16 || sequence % 200 == 0;
+}
+
+static void timing_trace_context(CPUContext& ctx) {
+    std::cout << " inst=" << std::dec << ctx.inst_count << " tb=" << ctx.read_timebase()
+              << " thread=0x" << std::hex << ctx.mmu.read32(0x800000E4)
+              << " context=0x" << ctx.mmu.read32(0x800000D4)
+              << " dispatch=0x" << ctx.dispatch_saved_ctx
+              << " in_callback=" << std::dec << ctx.in_callback;
+}
 
 
 
@@ -110,6 +135,17 @@ static void adma_event_cb(CPUContext& ctx, uint64_t late) {
     
     dsp_control |= 0x0008;
     dsp_update_pi();
+    if (timing_trace_enabled() && timing_trace_sample(++s_timing_dma_sequence)) {
+        std::cout << "[DSPDMA] seq=" << std::dec << s_timing_dma_sequence
+                  << " blocks=" << blocks << " bytes=" << bytes
+                  << " addr=0x" << std::hex << adma_addr;
+        timing_trace_context(ctx);
+        std::cout << " ax_seq=" << s_timing_ax_sequence
+                  << " ax_addr=0x" << std::hex << s_timing_ax_addr
+                  << " ax_words=" << std::dec << (s_timing_ax_size_mail & 0xFFFF)
+                  << " ax_size_mail=0x" << std::hex << s_timing_ax_size_mail
+                  << std::dec << "\n";
+    }
 }
 
 // three DSP subsystem sources — Dolphin's (csr >> 1) & csr trick.
@@ -206,10 +242,24 @@ void register_dsp(MMIODispatcher& dispatcher) {{
                             });
                     };
                     if (s_ax_state == 1) {
+                        if (timing_trace_enabled()) {
+                            s_timing_ax_size_mail = s_timing_ax_pending_size_mail;
+                            s_timing_ax_addr = mail;
+                            if (timing_trace_sample(++s_timing_ax_sequence)) {
+                                const uint32_t words = s_timing_ax_size_mail & 0xFFFF;
+                                std::cout << "[AXMail] seq=" << std::dec << s_timing_ax_sequence
+                                          << " size_mail=0x" << std::hex << s_timing_ax_size_mail
+                                          << " addr=0x" << mail << " words=" << std::dec << words
+                                          << " bytes=" << words * 2;
+                                if (g_ctx_ptr) timing_trace_context(*g_ctx_ptr);
+                                std::cout << std::dec << "\n";
+                            }
+                        }
                         
                         reply(0x0002); 
                         s_ax_state = 2;
                     } else if ((mail & 0xFFFF0000u) == 0xBABE0000u) {
+                        if (timing_trace_enabled()) s_timing_ax_pending_size_mail = mail;
                         s_ax_state = 1;
                     } else if (mail == 0xCDD10001u) {
                         reply(0x0001); 
