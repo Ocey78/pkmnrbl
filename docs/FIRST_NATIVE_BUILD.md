@@ -27,8 +27,11 @@ confirms the requested controls work and reach the save screen, but reports a
 black screen after starting a save. Save persistence and gameplay are NOT yet
 verified; this is not a finished release. See the latest section below;
 the older sections are chronological evidence, not the current blocker.
-The last completed title executable is the controls milestone e6aa265. Further
-source fixes below pass regressions but still need the combined game rebuild.
+Development now runs from E:/Projects/pkmnrbl-workspace/work/pkmnrbl. The fresh
+combined interpreter-OFF title build includes the post-menu AOT corrections
+and a newly verified IPC reply fix. It renders the title menu again. Save,
+cutscene and gameplay progression still need verification. See the E-drive
+continuation below for the current state.
 
 Preserve the solved boot milestones:
 
@@ -485,6 +488,52 @@ Resume in this order:
 
 Private evidence: build/logs/save-start-20261010.log/.err, _12000.bmp and
 post-callback-export-20261010.log. Do not upload these or the temporary copy.
+
+### E-drive continuation and fresh reply-format blocker (2026-10-10)
+
+The copied workspace was verified file-for-file before use: 46,012 files,
+4,533,221,993 bytes, identical SHA-256 content. C-drive cleanup was blocked;
+the original remains untouched. Use the E repository explicitly, not the old
+task working directory. Untracked local helper scripts are preserved.
+
+Fresh E Release and asset-free Debug configurations were built, with 31/31 and
+10/10 tests passing, including actual GPU execution. Python is selected
+explicitly and compiler TEMP/TMP point to build/tmp on E. The old copied build
+trees are named windows-release-c-copy and windows-debug-c-copy. The new builds
+reuse only pinned dependency source directories in the former; do not remove
+that tree while those source overrides remain in CMakeCache. Active caches and
+projects no longer reference the old C workspace.
+
+Latest nwiirecomp export discovers14,375 functions, including callback8028F440.
+The full native title built successfully (zero errors,499 existing warnings),
+with PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF. No interpreter source is compiled.
+This supersedes the earlier disk-space-blocked rebuild, but not its outstanding
+save/cutscene/gameplay verification.
+
+First fresh title run: frames60/draws0, PC802B4064/LR802F14BC, before any input.
+It was stopped after capturing a persistent state. A WRITE command4 completed
+on descriptor7 while saving synthetic SYSCONF. The runtime left descriptor7
+at request+8; the guest expects original command4 there in a reply, so it takes
+the IOCTLV7 branch and walks unrelated data as buffer vectors. The exact AOT
+branch/call mapping and regression checklist are in
+docs/superpowers/plans/2026-10-10-save-start-trace.md. Private evidence remains
+under build/logs/e-save-baseline-20261010.* and must not be uploaded.
+
+The reply-format correction is now verified: original synthetic packet tests
+failed first, then pass for all seven commands, RAM aliases, pending/deferred
+completion and queue ordering. Shared ipc_post_reply converts+0/+8 after device
+completion, preserving result/payload/callback metadata. Full Release31/31 and
+Debug10/10 tests pass; independent review has no actionable findings.
+
+The actual interpreter-OFF executable was incrementally rebuilt with the changed
+runtime file (its generated copy was checksum-checked; translated game code is
+unchanged). Private e-reply-fixed-20261010_10800.bmp visibly shows the New Game /
+Options title menu. At80s:3771 frames,66,528 draws,40 shaders,305,823 nonblack
+pixels and GL error0. The malformed-reply stall is resolved. Live Windows
+capture timed out twice, so the user was asked to start New Game in the running
+600-second diagnostic instead of sending blind inputs. Next: capture that
+transition and trace the next proven blocker. No cutscene, persistent-save,
+or gameplay success is claimed.
 
 ## Reproduction
 

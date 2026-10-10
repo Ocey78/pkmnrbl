@@ -65,6 +65,17 @@ void hle_set_ipc_arm_msg(uint32_t req_addr) {
 
 
 void ipc_post_reply(uint32_t req_addr) {
+  if (g_ctx_ptr) {
+    auto& mmu = g_ctx_ptr->mmu;
+    const uint32_t command = mmu.read32(req_addr);
+    // IOS replies replace the descriptor with the original command, after
+    // the device has consumed the request. Keep the result and arguments.
+    // An already converted reply must retain its original command.
+    if (command != 8) {
+      mmu.write32(req_addr + 8, command);
+      mmu.write32(req_addr, 8);
+    }
+  }
   ipc_reply_queue.push_back(req_addr);
   post_next_reply_if_ready();
 }
@@ -110,7 +121,7 @@ void register_ipc(MMIODispatcher& dispatcher) {{
                     ipc_ppc_ctrl &= ~IPC_CTRL_X1;
                     ipc_ppc_ctrl |= IPC_CTRL_Y2;
                     if (result != IPC_NO_REPLY)
-                        ipc_reply_queue.push_back(ipc_ppc_msg);
+                        ipc_post_reply(ipc_ppc_msg);
                     g_ipc_interrupt_delay = 50;
                 }
 
