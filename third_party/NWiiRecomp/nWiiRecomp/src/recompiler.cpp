@@ -1119,6 +1119,8 @@ void Recompiler::emit_instruction(std::ostream &out,
           << "]; // mfgqr" << (spr - 912) << " r" << rD << "\n";
     } else if (spr == 1) {
       out << "    ctx.gpr[" << rD << "] = ctx.xer; // mfxer r" << rD << "\n";
+    } else if (spr == 920 || spr == 922 || spr == 923) {
+      out << "    ctx.gpr[" << rD << "] = ctx.mmu.read_cache_spr(" << spr << ");\n";
     } else if (spr >= 920 && spr <= 924) {
       out << "    ctx.gpr[" << rD << "] = 0; // mfspr HID " << spr << "\n";
     } else if (spr == 1008) {
@@ -1156,6 +1158,8 @@ void Recompiler::emit_instruction(std::ostream &out,
           << "]; // mtgqr" << (spr - 912) << " r" << rS << "\n";
     } else if (spr == 1) {
       out << "    ctx.xer = ctx.gpr[" << rS << "]; // mtxer r" << rS << "\n";
+    } else if (spr == 920 || spr == 922 || spr == 923) {
+      out << "    ctx.mmu.write_cache_spr(" << spr << ", ctx.gpr[" << rS << "], ctx.msr);\n";
     } else {
       out << "    // unhandled mtspr " << spr
           << "\n"; 
@@ -1878,8 +1882,11 @@ void Recompiler::emit_instruction(std::ostream &out,
     uint32_t rB = ppc_inst.rb();
     uint32_t rS = ppc_inst.rs();
 
-    if (xo == 598 || xo == 854 || xo == 982 || xo == 54 || xo == 86 ||
-        xo == 278 || xo == 246 || xo == 470) {
+    if (xo == 54 || xo == 86 || xo == 470) {
+      out << "    ctx.mmu.maintain_cache_line(";
+      if (rA) out << "ctx.gpr[" << rA << "] + ";
+      out << "ctx.gpr[" << rB << "], " << xo << ");\n";
+    } else if (xo == 598 || xo == 854 || xo == 982 || xo == 278 || xo == 246) {
       
       out << "    // sync/cache instruction\n";
     } else if (xo == 0) { 
@@ -2414,7 +2421,9 @@ void Recompiler::emit_instruction(std::ostream &out,
           << "], __builtin_bswap32(ctx.gpr[" << ppc_inst.rs()
           << "])); // stwbrx\n";
     } else if (xo == 1014) { 
-      out << "    // dcbz (data cache block zero) - stub\n";
+      out << "    ctx.mmu.zero_cache_line(";
+      if (rA) out << "ctx.gpr[" << rA << "] + ";
+      out << "ctx.gpr[" << rB << "], false, ctx.msr); // dcbz\n";
     } else if (xo == 55) { 
       out << "    { uint32_t ea = ctx.gpr[" << rA << "] + ctx.gpr[" << rB
           << "]; ";
@@ -2635,7 +2644,9 @@ void Recompiler::emit_instruction(std::ostream &out,
       out << "    ctx.ps_cmpo1(" << (frD >> 2) << ", " << frA << ", " << frB
           << ");\n";
     } else if (xo_10 == 1014) {
-      out << "    // dcbz_l (no-op)\n";
+      out << "    ctx.mmu.zero_cache_line(";
+      if (ppc_inst.ra()) out << "ctx.gpr[" << ppc_inst.ra() << "] + ";
+      out << "ctx.gpr[" << ppc_inst.rb() << "], true, ctx.msr); // dcbz_l\n";
     } else {
       out << "    std::cerr << \"UNIMPLEMENTED Opcode 4 (ps_*) XO \" << " << xo
           << " << \" XO_10 \" << " << xo_10

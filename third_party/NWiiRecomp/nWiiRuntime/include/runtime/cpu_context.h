@@ -1,4 +1,5 @@
 #pragma once
+#include "runtime/locked_cache.h"
 #include <array>
 #include <cmath>
 #include <chrono>
@@ -55,17 +56,20 @@ struct CallbackInfo {
 void watch_hit(uint32_t addr, uint32_t value, int width);
 extern uint32_t g_watch_addr;
 
-// Strict Dolphin-accurate MMU
+// Native guest memory views; device behavior is provided by the runtime.
 struct MMU {
   std::vector<uint8_t> mem1;
   std::vector<uint8_t> mem2;
+  LockedCache locked_cache;
 
   MMU() {
     mem1.resize(24 * 1024 * 1024 + 8, 0); 
     mem2.resize(64 * 1024 * 1024 + 8, 0); 
   }
 
-  inline uint8_t *get_ptr(uint32_t addr) {
+  inline uint8_t *get_ptr(uint32_t addr, size_t bytes = 1) {
+    if (addr >= LockedCache::base && addr - LockedCache::base < LockedCache::size)
+      return locked_cache.get_ptr(addr, bytes);
     uint32_t paddr = addr & 0x3FFFFFFF; 
     if (paddr < mem1.size() - 8) {
         return &mem1[paddr];
@@ -73,6 +77,20 @@ struct MMU {
         return &mem2[paddr - 0x10000000];
     }
     return nullptr;
+  }
+
+  uint32_t read_cache_spr(unsigned spr) const { return locked_cache.read_spr(spr); }
+  void maintain_cache_line(uint32_t addr, unsigned xo) { locked_cache.maintain(addr, xo); }
+  void write_cache_spr(unsigned spr, uint32_t value, uint32_t msr) {
+    locked_cache.write_spr(spr, value, msr, mem1, mem2);
+  }
+  void zero_cache_line(uint32_t addr, bool locked, uint32_t msr) {
+    if (locked) { locked_cache.zero(addr, msr); return; }
+    addr &= ~31u;
+    uint8_t* ptr = locked_cache.get_ptr(addr, 32);
+    if (!ptr) ptr = LockedCache::ram_span(addr & 0x3FFFFFFF, 32, mem1, mem2);
+    if (!ptr) throw std::runtime_error("dcbz outside supported RAM/allocated locked cache");
+    std::memset(ptr, 0, 32);
   }
 
   inline bool is_hw_reg(uint32_t paddr) const {
@@ -116,7 +134,7 @@ struct MMU {
 
     if (is_hw_reg(paddr)) return HW_Reg_Read16(paddr);
     
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 2);
     if (ptr) return (ptr[0] << 8) | ptr[1];
     return 0;
   }
@@ -130,7 +148,7 @@ struct MMU {
     if ((paddr & 0xFFFFF000u) == 0x0C008000) { GX_WGPIPE_Write16(value); return; } 
     if (is_hw_reg(paddr)) { HW_Reg_Write16(paddr, value); return; }
 
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 2);
     if (ptr) { ptr[0] = value >> 8; ptr[1] = value & 0xFF; }
   }
 
@@ -140,7 +158,7 @@ struct MMU {
 
     if (is_hw_reg(paddr)) return HW_Reg_Read32(paddr);
 
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 4);
     if (!ptr) return 0;
     uint32_t val = ((uint32_t)ptr[0] << 24) | ((uint32_t)ptr[1] << 16) | ((uint32_t)ptr[2] << 8) | ptr[3];
 
@@ -157,7 +175,7 @@ struct MMU {
     if ((paddr & 0xFFFFF000u) == 0x0C008000) { GX_WGPIPE_Write32(value); return; }
     if (is_hw_reg(paddr)) { HW_Reg_Write32(paddr, value); return; }
 
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 4);
     if (ptr) { ptr[0] = value >> 24; ptr[1] = (value >> 16) & 0xFF; ptr[2] = (value >> 8) & 0xFF; ptr[3] = value & 0xFF; }
   }
 
@@ -172,7 +190,7 @@ struct MMU {
 
     if ((paddr & 0xFFFFF000u) == 0x0C008000) { GX_WGPIPE_WriteF32(value); return; } 
 
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 4);
     if (ptr) {
       ptr[0] = v >> 24; ptr[1] = (v >> 16) & 0xFF; ptr[2] = (v >> 8) & 0xFF; ptr[3] = v & 0xFF;
     }
@@ -188,7 +206,7 @@ struct MMU {
 
     if ((paddr & 0xFFFFF000u) == 0x0C008000) { GX_WGPIPE_WriteF64(value); return; } 
 
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 8);
     if (ptr) {
       ptr[0] = v >> 56; ptr[1] = (v >> 48) & 0xFF; ptr[2] = (v >> 40) & 0xFF; ptr[3] = (v >> 32) & 0xFF;
       ptr[4] = (v >> 24) & 0xFF; ptr[5] = (v >> 16) & 0xFF; ptr[6] = (v >> 8) & 0xFF; ptr[7] = v & 0xFF;
@@ -196,7 +214,7 @@ struct MMU {
   }
 
   uint64_t read64(uint32_t addr) {
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 8);
     if (!ptr) return 0;
     return ((uint64_t)ptr[0] << 56) | ((uint64_t)ptr[1] << 48) | ((uint64_t)ptr[2] << 40) | ((uint64_t)ptr[3] << 32) |
            ((uint64_t)ptr[4] << 24) | ((uint64_t)ptr[5] << 16) | ((uint64_t)ptr[6] << 8) | ptr[7];
@@ -206,13 +224,13 @@ struct MMU {
     if (g_watch_addr && (paddr & ~7u) == (g_watch_addr & 0x3FFFFFF8))
       watch_hit(addr, value >> 32, 64);
 
-    uint8_t *ptr = get_ptr(addr);
+    uint8_t *ptr = get_ptr(addr, 8);
     if (!ptr) return;
     ptr[0] = value >> 56; ptr[1] = (value >> 48) & 0xFF; ptr[2] = (value >> 40) & 0xFF; ptr[3] = (value >> 32) & 0xFF;
     ptr[4] = (value >> 24) & 0xFF; ptr[5] = (value >> 16) & 0xFF; ptr[6] = (value >> 8) & 0xFF; ptr[7] = value & 0xFF;
   }
-  double read_f64(uint32_t addr) { 
-      uint8_t *ptr = get_ptr(addr);
+  double read_f64(uint32_t addr) {
+      uint8_t *ptr = get_ptr(addr, 8);
       if (ptr) {
           uint64_t val = ((uint64_t)ptr[0] << 56) | ((uint64_t)ptr[1] << 48) | ((uint64_t)ptr[2] << 40) | ((uint64_t)ptr[3] << 32) |
                          ((uint64_t)ptr[4] << 24) | ((uint64_t)ptr[5] << 16) | ((uint64_t)ptr[6] << 8) | ptr[7];

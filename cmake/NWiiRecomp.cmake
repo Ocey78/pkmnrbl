@@ -254,6 +254,19 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
         add_test(NAME aot_float_update_${mode} COMMAND aot_float_update_tests ${mode})
     endforeach()
 
+    add_executable(aot_locked_cache_fixture tests/aot_locked_cache_fixture.cpp)
+    target_link_libraries(aot_locked_cache_fixture PRIVATE nwiirecomp_lib)
+    set(locked_cache_fixture "${CMAKE_CURRENT_BINARY_DIR}/aot_locked_cache_generated.cpp")
+    add_custom_command(OUTPUT "${locked_cache_fixture}"
+        COMMAND aot_locked_cache_fixture "${locked_cache_fixture}"
+        DEPENDS aot_locked_cache_fixture VERBATIM)
+    add_executable(aot_locked_cache_tests tests/aot_locked_cache_tests.cpp "${locked_cache_fixture}")
+    target_include_directories(aot_locked_cache_tests PRIVATE "${PKMNRBL_NWII_ROOT}/nWiiRuntime/include")
+    target_compile_features(aot_locked_cache_tests PRIVATE cxx_std_20)
+    foreach(mode IN ITEMS registers allocation store load no_trigger completion flush disabled boundary dcbz guards missing_tag maintenance)
+        add_test(NAME aot_locked_cache_${mode} COMMAND aot_locked_cache_tests ${mode})
+    endforeach()
+
     add_executable(aot_syscall_fixture tests/aot_syscall_fixture.cpp)
     target_link_libraries(aot_syscall_fixture PRIVATE nwiirecomp_lib)
     set(syscall_fixture "${CMAKE_CURRENT_BINARY_DIR}/aot_syscall_generated.cpp")

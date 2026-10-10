@@ -19,7 +19,7 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 ## Verified milestones and limits
 
 A native Windows executable links with Visual Studio 2022 x64 and runs with
-the bring-up interpreter OFF. Current registered tests:71/71 Release and42/42 standalone
+the bring-up interpreter OFF. Current registered tests:84/84 Release and42/42 standalone
 Debug passed. The title menu, requested controls, Save A selection and advancing
 opening captions are verified. The scene behind those captions remains black
 in the latest completed diagnostic; full cutscenes, gameplay, sound and save
@@ -922,6 +922,44 @@ e-indexed-matrix-source-20261010 run, with existing GXTRACE enabled, records
 zero source values for early indexed position and normal matrix loads. Next
 trace the guest matrix producers and their address/data lifetime; do not bypass
 projection, lighting, culling or depth. No rendered 3D scene is verified yet.
+
+### Locked-cache model producer: proven missing runtime behavior
+
+The e-locked-cache-producer-20261010 run confirms model owner80F5CE20 selects
+802616E0 and exports its position/normal matrices through80294450 from
+E0000800/E0001000 into80F5DCA0/80F5E5E0. These are the exact arrays whose later
+GX indexed loads (includingF5DE80/F5E748) contained zero. Earlier world-matrix
+exports also use802B4340 fromE0000000. Native output previously emitted DMA
+SPR writes and dcbz_l as no-ops; MMU did not map LC storage. This explains the
+lost producer data without changing the title's matrix calculations.
+
+The source runtime now has separate allocated locked-cache lines for the SDK's
+E0000000-E0003FFF window. Native AOT handles HID2/DMAU/DMAL, block zero and
+invalidation; ordered DMA performs real synchronous copies to/from physical
+MEM1/MEM2. No interpreter or title-function bypass is used. The register and
+cache contract follows [IBM Gekko User's Manual, sections2.1.2.4,2.1.2.8,9.2-9.3](https://doc.kodewerx.org/documents/gekko_user_manual.pdf).
+This is a bounded compatibility implementation, not cycle-accurate DMA, a
+generic cache/TLB model, or complete guest exception delivery. Unsupported
+LC castout, mapping, illegal-instruction and enabled machine-check paths stop
+diagnostically; they are not silently treated as successful transfers.
+
+Original emitted native fixtures failed all10 initial cases before the change.
+Independent review found missing invalidation support; a further regression
+failed because DMA exported an invalidated line, then passed after correction.
+The final13 cases also cover physical alias rejection, invalid spans, missing
+tags, disabled/flush/no-trigger behavior, full4096-byte copies and sentinels.
+Complete Release84/84 (13.04s), Debug42/42 (2.24s) passed. Full Release build
+540warnings/0errors, Debug0/0; final incremental Release0/0. Existing compiler
+warnings remain; the build is not claimed warning-free.
+
+The title was regenerated in an ignored isolated directory. Exactly64 emitted
+lines changed across six chunks, all attributable to these native cache/SPR
+operations. Existing local generated files were backed up before synchronization;
+no function discovery or other title code changed. CPUContext and new LC header
+hashes match the source runtime. Interpreter remains OFF. Full native rebuild
+and the next real-title rendering check are in progress; cutscenes/gameplay are
+NOT yet verified. The separately committed full-bank cache refresh remains out
+of this executable to keep the LC comparison isolated.
 
 ## Reproduction
 
