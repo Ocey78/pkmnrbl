@@ -19,7 +19,7 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 ## Verified milestones and limits
 
 A native Windows executable links with Visual Studio 2022 x64 and runs with
-the bring-up interpreter OFF. Current tests:68/68 Release and39/39 standalone
+the bring-up interpreter OFF. Current registered tests:70/70 Release and41/41 standalone
 Debug passed. The title menu, requested controls, Save A selection and advancing
 opening captions are verified. The scene behind those captions remains black
 in the latest completed diagnostic; full cutscenes, gameplay, sound and save
@@ -27,8 +27,9 @@ persistence are NOT yet verified. This is not a finished release.
 
 The latest trace proves hundreds of MEM2 display-list calls were rejected by
 a MEM1-only parser check. The memory-contract fix passes its new original
-regression and the native title rebuilt; e-mem2-dl-20261010 is running to measure
-the actual visual result. See the latest sections below for evidence and limits;
+regression and the native title rebuilt. The e-mem2-dl-20261010 run now submits
+the previously rejected geometry, but model batches collapse to zero view-space
+coordinates; the user still reports captions on black. See the latest sections for evidence and limits;
 older sections are chronological history, not the current blocker. Development
 runs from E:/Projects/pkmnrbl-workspace/work/pkmnrbl.
 
@@ -824,10 +825,43 @@ warnings (first build34), Debug0, all zero errors. Native OFF rebuild:5.24s,
 zero warnings/errors. Two generated runtime preimages were hash-checked and
 backed up before replacement; the new helper and copied files match source.
 
-Private run e-mem2-dl-20261010 is now testing the real title. Do not claim visible
-3D until its capture/user result confirms it. A separate synthetic probe also
-reproduces stale per-vertex matrix-bank snapshots on a DL cache hit; that issue
-is deliberately deferred until the MEM2-only run establishes the next symptom.
+Private run e-mem2-dl-20261010 confirms newly accepted MEM2 geometry: sampled
+perspective batches now have36/72/360/432 vertices, but all their view positions
+are exactly zero. One observed interval has1,091,448 triangles,1,066,400 with
+nonpositive W; the remaining25,048 are left-clipped. GLerror remains0. The user
+still sees captions on black, also confirmed by the local EFB capture. This is
+progress past rejection, NOT a rendered model/cutscene milestone. Next trace
+must distinguish original position-array data from selected matrix contents.
+
+A separate synthetic probe reproduces stale per-vertex matrix-bank snapshots
+on a DL cache hit. Read-only inspection also found that direct XF commands leave
+their cache-marker field uninitialized, potentially being misread as indexed
+matrix loads. Neither is yet proven as this title's zero-position cause; they
+require isolated regression/evidence before any further runtime correction.
+
+### Zero-position observation checkpoint
+
+Default-off NWII_RENDER_DIAG now emits bounded GXDECODE records for lit draws:
+original object bounds/format/array address, the actually selected matrix source
+and zero-matrix count, representative translation/linear scale, and decoded
+bounds. It does not use the final parser projection or matrix state as if they
+belonged to an earlier draw. At most128 records are emitted; unobserved draws
+do not compute these bounds. Two-component input Z is marked unavailable rather
+than adding a diagnostic read of uninitialized data. No rendering behavior changes.
+
+An original nonzero-object/zero-selected-bank fixture failed on the absent record
+before instrumentation, then passed; the disabled case verifies silence. Full
+registered Release70/70 (9.31s) and Debug41/41 (1.90s) pass. Release build21warnings,
+zero errors. Fresh review found no issues; single/deferred/partial/nonfinite paths
+and the cap are code-reviewed, not individually regression-exercised. Export to
+the real title is pending the next native rebuild.
+
+The direct-XF cache investigation separately reproduced the zero-collapse with
+original bytes and unchanged production code in Debug: cache miss produces
+(8,-1,-8), all eight verified replays across MEM1/MEM2 produce(0,0,0). Direct XF
+commands leave val uninitialized, and replay tests its high bit as an indexed-load
+marker. The private probe fails16/60 checks. A dedicated regression and minimal
+field initialization are next; actual title command attribution remains unproven.
 
 ## Reproduction
 

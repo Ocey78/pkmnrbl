@@ -158,8 +158,18 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
     target_compile_features(gx_display_list_memory_tests PRIVATE cxx_std_20)
     add_test(NAME gx_display_list_memory COMMAND gx_display_list_memory_tests)
-    set_tests_properties(gx_display_list_memory PROPERTIES ENVIRONMENT_MODIFICATION
-        "NWII_NODLCACHE=unset:;NWII_NOSEED=unset:;NWII_GXTRACE=unset:;NWII_TEVTRACE=unset:;NWII_TEXMTXDBG=unset:;NWII_SKINDBG=unset:;NWII_DLDBG=unset:;NWII_XFDBG=unset:;NWII_VATDBG=unset:;NWII_DESYNC=unset:;NWII_SAMPLE=unset:;NWII_FRAMESIG=unset:;NWII_GXDUMP=unset:;NWII_WGSEG=unset:;NWII_WGTRACE=unset:")
+    add_test(NAME gx_decode_diagnostic COMMAND gx_display_list_memory_tests decode-diagnostic)
+    add_test(NAME gx_decode_diagnostic_disabled COMMAND gx_display_list_memory_tests decode-diagnostic)
+    set_tests_properties(gx_display_list_memory gx_decode_diagnostic gx_decode_diagnostic_disabled
+        PROPERTIES ENVIRONMENT_MODIFICATION
+        "NWII_NODLCACHE=unset:;NWII_NOSEED=unset:;NWII_GXTRACE=unset:;NWII_TEVTRACE=unset:;NWII_TEXMTXDBG=unset:;NWII_SKINDBG=unset:;NWII_DLDBG=unset:;NWII_XFDBG=unset:;NWII_VATDBG=unset:;NWII_DESYNC=unset:;NWII_SAMPLE=unset:;NWII_FRAMESIG=unset:;NWII_GXDUMP=unset:;NWII_WGSEG=unset:;NWII_WGTRACE=unset:;NWII_RENDER_DIAG=unset:")
+    set_property(TEST gx_decode_diagnostic APPEND PROPERTY ENVIRONMENT_MODIFICATION
+        "NWII_RENDER_DIAG=set:1")
+    set_tests_properties(gx_decode_diagnostic PROPERTIES
+        PASS_REGULAR_EXPRESSION "\\[GXDECODE\\].*input=3 decoded=3.*object_min=2,3,4 object_max=4,5,6 object_zero=0.*matrix=bank:3,single:0,defer:0 matrix_zero=3 first_translation=0,0,0 first_linear_maxabs=0.*decoded_min=0,0,0 decoded_max=0,0,0 pre_xf=3"
+        FAIL_REGULAR_EXPRESSION "FAIL")
+    set_tests_properties(gx_decode_diagnostic_disabled PROPERTIES
+        FAIL_REGULAR_EXPRESSION "\\[GXDECODE\\];FAIL")
 
 endif()
 

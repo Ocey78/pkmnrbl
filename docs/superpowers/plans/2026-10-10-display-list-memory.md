@@ -14,8 +14,8 @@
 - [x] Check real-run display-list addresses and clipping results before selecting the next title rendering hypothesis.
 - [x] Implement the smallest shared address/span rule for parser and snapshot, preserving size/depth limits, cache policy and FIFO sequencing. No changes to indexed-matrix caching in this patch.
 - [x] Run the new regression in Release/Debug and all available tests. Fresh independent review.
-- [ ] Run repository policy and create source-only checkpoint.
-- [ ] Copy only verified attributable runtime changes to local generated code after backup, rebuild interpreter-OFF and rerun title. Source-only checkpoint with actual outcomes; no title payloads, logs, screenshots or generated code.
+- [x] Run repository policy and create source-only checkpoint.
+- [x] Copy only verified attributable runtime changes to local generated code after backup, rebuild interpreter-OFF and rerun title. Source-only checkpoint with actual outcomes; no title payloads, logs, screenshots or generated code.
 
 ## Contracts
 
@@ -31,6 +31,8 @@ RED:57 assertions,14 intended failures, independently observed by parent and
 fixture agent. GREEN:57/57; complete Release68/68 and Debug39/39. Fresh review
 approved, including final Fetch-only-cache lookup that keeps invalid-insertion
 tests meaningful. Native OFF build5.24s,0warnings/errors. Local runtime copies
-were backed up and hash-verified. Real e-mem2-dl-20261010 started; visual result
-pending. The prior user-confirmed caption run proves repeated MEM2 calls reject;
+were backed up and hash-verified. Source-only checkpoint6c312ef pushed. The real
+e-mem2-dl-20261010 run submits previously rejected model geometry, but its view
+coordinates collapse tozero; the user and capture still show captions on black.
+The prior user-confirmed caption run proves repeated MEM2 calls reject;
 the snapshot seam is dormant, not an attributed active title cause.

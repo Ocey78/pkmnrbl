@@ -7,6 +7,7 @@
 #include "runtime/hw/hw.h"
 
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -100,9 +101,46 @@ void expect_no_snapshot(uint32_t address, uint32_t length, const std::string& na
     std::vector<uint8_t> out;
     check(!GX_DL_Fetch(address, length, out), name);
 }
+int decode_diagnostic_fixture() {
+    GXCommand command{};
+    command.type = GXCommandType::DrawPrimitive;
+    command.prim_type = 0x90;
+    command.raw = std::make_shared<DrawRaw>();
+    auto& raw = *command.raw;
+    raw.vat = {};
+    raw.vat.posMatIdx = true;
+    raw.vat.posMask = VtxAttrMask::Direct;
+    raw.vat.posType = VtxAttrType::F32;
+    raw.vat.posElements = true;
+    raw.need_normal = true; // qualify as a lit draw without unrelated attributes
+    raw.count = 3;
+    raw.snap_pos_bank.assign(256, 0.0f);
+    raw.snap_pos_bank[12] = 1.0f; // another slot is nonzero; selected slot 0 is zero
+    for (unsigned vertex = 0; vertex < 3; ++vertex) {
+        raw.bytes.push_back(0); // per-vertex position-matrix index
+        for (float component : {2.0f + vertex, 3.0f + vertex, 4.0f + vertex}) {
+            uint32_t bits;
+            std::memcpy(&bits, &component, sizeof(bits));
+            put32(raw.bytes, bits);
+        }
+    }
+    FifoParser::DecodeDraw(command);
+    check(command.vertices.size() == 3, "lit diagnostic fixture decodes all original vertices");
+    bool zero = command.vertices.size() == 3;
+    bool transformed = zero;
+    for (const auto& vertex : command.vertices) {
+        zero &= vertex.pos[0] == 0 && vertex.pos[1] == 0 && vertex.pos[2] == 0;
+        transformed &= vertex.pre_xf;
+    }
+    check(zero, "zero selected bank transforms nonzero object positions to zero");
+    check(transformed, "zero selected bank still marks vertices pre-transformed");
+    return failures ? 1 : 0;
+}
 }
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 2 && std::string(argv[1]) == "decode-diagnostic")
+        return decode_diagnostic_fixture();
     using namespace nwii::runtime;
     MMU mmu;
     g_mmu = &mmu;

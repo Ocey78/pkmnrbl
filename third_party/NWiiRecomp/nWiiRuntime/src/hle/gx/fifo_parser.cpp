@@ -13,6 +13,9 @@
 #include <map>
 #include <unordered_map>
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <optional>
 
 namespace nwii::runtime {
     extern MMU* g_mmu;
@@ -710,12 +713,114 @@ namespace {
                             vat.texElements[t] ? 2 : 1, false);
         return sz;
     }
+    // Decode precedes render-state replay, so these observations use only this
+    // draw's raw attributes and the matrix actually selected below, never the
+    // current projection or the parser bank left behind by later commands.
+    uint64_t DecodeDiagnosticOrdinal(const DrawRaw& raw) {
+        static const bool enabled = std::getenv("NWII_RENDER_DIAG") != nullptr;
+        if (!enabled || !raw.need_normal) return 0;
+        static uint64_t qualifying = 0;
+        static unsigned records = 0;
+        if (records >= 128) return 0;
+        const uint64_t ordinal = ++qualifying;
+        if (ordinal > 16 && ordinal % 4096 != 0) return 0;
+        ++records;
+        return ordinal;
+    }
+
+    struct DecodePositionBounds {
+        float low[3]{}, high[3]{};
+        unsigned count = 0, zero = 0;
+
+        void Add(const float* position, bool has_z) {
+            // The existing two-component decoder does not initialize pos[2].
+            // Do not introduce an extra read of it for a diagnostic: mark that
+            // bound unavailable until a transform has actually supplied Z.
+            const float xyz[3] = {position[0], position[1], has_z ? position[2] :
+                std::numeric_limits<float>::quiet_NaN()};
+            if (xyz[0] == 0 && xyz[1] == 0 && xyz[2] == 0) ++zero;
+            for (unsigned axis = 0; axis < 3; ++axis) {
+                if (count == 0) low[axis] = high[axis] = xyz[axis];
+                else if (!std::isfinite(xyz[axis]) || !std::isfinite(low[axis]))
+                    low[axis] = high[axis] = std::numeric_limits<float>::quiet_NaN();
+                else {
+                    low[axis] = std::min(low[axis], xyz[axis]);
+                    high[axis] = std::max(high[axis], xyz[axis]);
+                }
+            }
+            ++count;
+        }
+    };
+
+    struct DecodeDrawDiagnostic {
+        const GXCommand& command;
+        uint64_t ordinal;
+        unsigned input, mask, type, shift, components;
+        uint32_t base, stride;
+        DecodePositionBounds object, decoded;
+        unsigned bank = 0, single = 0, defer = 0, matrix_zero = 0, pre_xf = 0;
+        float translation[3], linear_maxabs;
+
+        DecodeDrawDiagnostic(const GXCommand& cmd, const DrawRaw& raw, uint64_t number)
+            : command(cmd), ordinal(number), input(raw.count),
+              mask(unsigned(raw.vat.posMask)), type(unsigned(raw.vat.posType)),
+              shift(raw.vat.posShift), components(raw.vat.posElements ? 3 : 2),
+              base(raw.arrayBase[0]), stride(raw.arrayStride[0]),
+              translation{std::numeric_limits<float>::quiet_NaN(),
+                          std::numeric_limits<float>::quiet_NaN(),
+                          std::numeric_limits<float>::quiet_NaN()},
+              linear_maxabs(std::numeric_limits<float>::quiet_NaN()) {}
+
+        void Matrix(const float* matrix, bool from_bank) {
+            bool all_zero = true;
+            for (unsigned i = 0; i < 12; ++i)
+                all_zero &= matrix[i] == 0;
+            matrix_zero += all_zero;
+            if (bank + single == 0) {
+                translation[0] = matrix[3]; translation[1] = matrix[7];
+                translation[2] = matrix[11];
+                linear_maxabs = 0;
+                for (unsigned i = 0; i < 12; ++i) {
+                    if (i % 4 == 3) continue;
+                    if (!std::isfinite(matrix[i])) {
+                        linear_maxabs = std::numeric_limits<float>::quiet_NaN();
+                        break;
+                    }
+                    linear_maxabs = std::max(linear_maxabs, std::fabs(matrix[i]));
+                }
+            }
+            if (from_bank) ++bank;
+            else ++single;
+        }
+
+        // Also reports partial decodes on existing early-return paths. Header
+        // fields are owned here because successful decode releases cmd.raw.
+        ~DecodeDrawDiagnostic() {
+            printf("[GXDECODE] lit_draw=%llu input=%u decoded=%zu "
+                   "posmask=%u type=%u components=%u shift=%u arraybase=%08x stride=%u "
+                   "object_min=%g,%g,%g object_max=%g,%g,%g object_zero=%u "
+                   "matrix=bank:%u,single:%u,defer:%u matrix_zero=%u "
+                   "first_translation=%g,%g,%g first_linear_maxabs=%g "
+                   "decoded_min=%g,%g,%g decoded_max=%g,%g,%g pre_xf=%u\n",
+                   (unsigned long long)ordinal, input, command.vertices.size(),
+                   mask, type, components, shift, base, stride,
+                   object.low[0], object.low[1], object.low[2],
+                   object.high[0], object.high[1], object.high[2], object.zero,
+                   bank, single, defer, matrix_zero,
+                   translation[0], translation[1], translation[2], linear_maxabs,
+                   decoded.low[0], decoded.low[1], decoded.low[2],
+                   decoded.high[0], decoded.high[1], decoded.high[2], pre_xf);
+        }
+    };
 } // namespace
 
 void FifoParser::DecodeDraw(GXCommand& c) {
     if (c.type != GXCommandType::DrawPrimitive || !c.raw || !c.vertices.empty())
         return;
     const DrawRaw& r = *c.raw;
+    std::optional<DecodeDrawDiagnostic> diagnostic;
+    if (const uint64_t ordinal = DecodeDiagnosticOrdinal(r))
+        diagnostic.emplace(c, r, ordinal);
     const std::vector<uint8_t>& buf = r.bytes;
     const size_t buf_size = buf.size();
     size_t off = 0;
@@ -745,6 +850,7 @@ void FifoParser::DecodeDraw(GXCommand& c) {
                             r.vat.posShift, r.arrayBase[0], r.arrayStride[0],
                             r.vat.posElements ? 3 : 2, vtx.pos))
             return;
+        if (diagnostic) diagnostic->object.Add(vtx.pos, r.vat.posElements);
         // CLR1 and tex1-7 are parsed for stream position only (the renderer
         // uses clr0/tex0). Normals are decoded only for lit draws.
         // Three indices when NBT normals arrive by index: consume the extra two
@@ -806,6 +912,7 @@ void FifoParser::DecodeDraw(GXCommand& c) {
             const uint32_t nb = 3u * (vtx.posMtxIdx & 31);
             if (pb + 12 <= 256 && nb + 9 <= 96) {
                 const float* m = &r.snap_pos_bank[pb];
+                if (diagnostic) diagnostic->Matrix(m, true);
                 float x = vtx.pos[0], y = vtx.pos[1], z = vtx.pos[2];
                 vtx.pos[0] = m[0]*x + m[1]*y + m[2]*z + m[3];
                 vtx.pos[1] = m[4]*x + m[5]*y + m[6]*z + m[7];
@@ -821,6 +928,7 @@ void FifoParser::DecodeDraw(GXCommand& c) {
             }
         } else if (r.have_snap_mtx && vtx.has_pos) {
             const float* m = r.snap_pos_mtx;
+            if (diagnostic) diagnostic->Matrix(m, false);
             float x = vtx.pos[0], y = vtx.pos[1], z = vtx.pos[2];
             vtx.pos[0] = m[0]*x + m[1]*y + m[2]*z + m[3];
             vtx.pos[1] = m[4]*x + m[5]*y + m[6]*z + m[7];
@@ -833,6 +941,11 @@ void FifoParser::DecodeDraw(GXCommand& c) {
                 vtx.norm[2] = n[6]*a + n[7]*b + n[8]*cc;
             }
             vtx.pre_xf = true;
+        }
+        if (diagnostic) {
+            diagnostic->pre_xf += vtx.pre_xf;
+            diagnostic->defer += !vtx.pre_xf;
+            diagnostic->decoded.Add(vtx.pos, r.vat.posElements || vtx.pre_xf);
         }
         c.vertices.push_back(vtx);
     }
