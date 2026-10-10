@@ -10,7 +10,7 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 - Title: WPSE01_01; game ID: WPSE; title ID: 0001000157505345.
 - main.dol SHA-1: fd9a2c00c97e420a42355e2c27f3dc0ebbd3d8f9.
-- Entry: 0x80004050; latest AOT discovery contains 14,375 functions.
+- Entry: 0x80004050; latest AOT discovery contains 14,377 functions.
 - NWiiRecomp base: 595f176f1d24cc54ff2e8389feed12d7fb553cc2.
 - Legal inputs stay in ignored local/WPSE01_01/.
 - AOT output stays in ignored generated/WPSE01_01/.
@@ -18,20 +18,19 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 ## Verified milestones and limits
 
-A native Windows executable links with Visual Studio 2022 x64. The local
-interpreter-OFF build has progressed through resource loading. The Release
-suite now contains 31 passing tests, including native input, ES content and real
-GPU tests. The current interpreter-OFF build renders the English instruction
-screen and the actual Pokemon Rumble title menu (New Game / Options). The user
-confirms the requested controls work and reach the save screen, but reports a
-black screen after starting a save. Save persistence and gameplay are NOT yet
-verified; this is not a finished release. See the latest section below;
-the older sections are chronological evidence, not the current blocker.
-Development now runs from E:/Projects/pkmnrbl-workspace/work/pkmnrbl. The fresh
-combined interpreter-OFF title build includes the post-menu AOT corrections
-and a newly verified IPC reply fix. It renders the title menu again. Save,
-cutscene and gameplay progression still need verification. See the E-drive
-continuation below for the current state.
+A native Windows executable links with Visual Studio 2022 x64 and runs with
+the bring-up interpreter OFF. Current tests:68/68 Release and39/39 standalone
+Debug passed. The title menu, requested controls, Save A selection and advancing
+opening captions are verified. The scene behind those captions remains black
+in the latest completed diagnostic; full cutscenes, gameplay, sound and save
+persistence are NOT yet verified. This is not a finished release.
+
+The latest trace proves hundreds of MEM2 display-list calls were rejected by
+a MEM1-only parser check. The memory-contract fix passes its new original
+regression and the native title rebuilt; e-mem2-dl-20261010 is running to measure
+the actual visual result. See the latest sections below for evidence and limits;
+older sections are chronological history, not the current blocker. Development
+runs from E:/Projects/pkmnrbl-workspace/work/pkmnrbl.
 
 Preserve the solved boot milestones:
 
@@ -764,8 +763,6 @@ Known remaining native AOT inventory: three ordinary rlwnm sites, one deliberate
 trap and data/padding analysis artifacts. None is proven reached in this run.
 Retain failfast OFF behavior and only implement gaps after relevant evidence.
 
-## Reproduction
-
 ### New boot exception target: native coverage checkpoint
 
 The next clipping run e-clip-planes-20261010 exited1 after the Wii Remote screen,
@@ -789,10 +786,50 @@ direct cleanup callee803422A8. Five output files differ due to chunk placement;
 1429 preexisting function bodies in those files were compared unchanged by
 hash. Other output files are identical. Only those five files plus declarations
 and dispatcher were copied after backups, with hashes verified. Runtime and
-all unrelated local changes remain intact. The full title rebuild is pending
-at this checkpoint because the declaration-header change recompiles all chunks.
-After it completes, rerun the title OFF with clipping/DL/matrix diagnostics;
-do not claim this crash or missing 3D is end-to-end fixed before that run.
+all unrelated local changes remain intact. The full interpreter-OFF title rebuild
+succeeded in8m29s (499 warnings, zero errors); the declaration-header change
+recompiled all chunks. Windows CI38068062363 also passed. Private diagnostic
+e-landing-root-20261010 reached Save A and advancing captions, as confirmed by
+the user. It did not reproduce the missing-entry exit, but the original exception
+trigger remains unproven. The diagnostic was deliberately stopped after gathering
+the following rendering evidence, not because of a new title crash.
+
+### MEM2 display-list rejection: verified runtime fix, visual result pending
+
+The same run repeatedly issued hundreds of CALL_DL requests in MEM2, including
+91560560/96bytes and neighboring lists. The parser masked the address to11560560
+then rejected it against a MEM1-only01800000 ceiling before decoding anything.
+The remaining submitted perspective triangles were all left-clipped, with view
+X around-49.7 at Z around-8.6; they do not establish what the discarded geometry
+would draw. No projection/depth/culling override was added.
+
+The active producer is translated guest code writing CALL_DL bytes through the
+write-gather pipe. The optional GX_DL_Snapshot seam is not bound/called by this
+title. Its separately reproduced bank-mask/span bugs are corrected with the
+same memory contract, but are not attributed as this title's active blocker.
+
+New asset-free gx_display_list_memory tests link the actual parser, snapshot
+and MMU with only unrelated renderer/hardware boundaries stubbed. Before the
+fix,14 of57 assertions failed: MEM2 expansion, cross-bank snapshot identity and
+bytes, invalid snapshot spans. After the fix all57 pass. Both banks' aliases,
+exact-end and crossing spans, MMIO/unmapped/wrapping rejection and parent FIFO
+continuation are covered. Snapshot alone validates guest reads; Fetch returns
+only already stored bytes, so its rejection assertions cannot mask a bad insertion.
+
+The shared rule retains MEM2's bank bit and validates complete guest spans with
+subtraction before reading memory. Parser size/depth limits, caching, command
+order and native CPU execution remain unchanged. Fresh review found no issues.
+Final Release68/68 (9.42s) and Debug39/39 (1.86s) pass. Release build reports14
+warnings (first build34), Debug0, all zero errors. Native OFF rebuild:5.24s,
+zero warnings/errors. Two generated runtime preimages were hash-checked and
+backed up before replacement; the new helper and copied files match source.
+
+Private run e-mem2-dl-20261010 is now testing the real title. Do not claim visible
+3D until its capture/user result confirms it. A separate synthetic probe also
+reproduces stale per-vertex matrix-bank snapshots on a DL cache hit; that issue
+is deliberately deferred until the MEM2-only run establishes the next symptom.
+
+## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.
 After emitter changes, rebuild nwiirecomp, run it with

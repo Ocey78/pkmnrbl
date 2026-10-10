@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include "runtime/gx/fifo_parser.h"
+#include "runtime/gx/display_list_memory.h"
 #include "runtime/gx_state.h"
 #include "runtime/cpu_context.h"
 #include "runtime/hw/hw.h"
@@ -559,16 +560,16 @@ static uint64_t DLStateHash() {
 
 static void ExpandDisplayList(uint32_t addr, uint32_t size,
                               std::vector<GXCommand>& commands, int depth) {
-    uint32_t phys = addr & 0x1FFFFFFF;
-    if (!nwii::runtime::g_mmu || size == 0 || size > 0x400000 ||
-        phys + size > 0x01800000 || depth >= 4)
+    uint32_t phys;
+    if (!nwii::runtime::g_mmu || size > 0x400000 || depth >= 4 ||
+        !ResolveDisplayListRamSpan(addr, size, phys))
         return;
     g_prof_dl_calls++;
     g_prof_dl_bytes += size;
     auto dl0 = std::chrono::steady_clock::now();
 
     static const bool nocache = std::getenv("NWII_NODLCACHE") != nullptr;
-    const uint8_t* src = nwii::runtime::g_mmu->get_ptr(0x80000000u | phys);
+    const uint8_t* src = nwii::runtime::g_mmu->get_ptr(phys);
     // Prefer the copy taken when the game actually made the call -- guest RAM
     // may already hold the next frame's list by the time we get here.
     std::vector<uint8_t> snap;

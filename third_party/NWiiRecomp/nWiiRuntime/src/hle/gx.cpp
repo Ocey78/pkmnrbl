@@ -5,6 +5,7 @@
 namespace nwii::runtime { extern CPUContext *g_ctx_ptr; }
 
 #include "runtime/gx/fifo_parser.h"
+#include "runtime/gx/display_list_memory.h"
 #include "runtime/gx/renderer.h"
 #include "runtime/hw/hw.h"
 #include "runtime/gx_state.h"
@@ -49,20 +50,22 @@ static std::map<uint64_t, std::vector<uint8_t>> g_dl_snap;
 
 namespace nwii::runtime {
 void GX_DL_Snapshot(uint32_t addr, uint32_t size) {
-    if (!nwii::runtime::g_mmu || size == 0 || size > (8u << 20)) return;
+    uint32_t phys;
+    if (!nwii::runtime::g_mmu || size > (8u << 20) ||
+        !ResolveDisplayListRamSpan(addr, size, phys)) return;
+    const uint8_t* p = nwii::runtime::g_mmu->get_ptr(phys);
+    if (!p) return;
     std::vector<uint8_t> buf(size);
-    if (const uint8_t* p = nwii::runtime::g_mmu->get_ptr(0x80000000u | (addr & 0x03FFFFFF)))
-        std::memcpy(buf.data(), p, size);
-    else
-        for (uint32_t i = 0; i < size; ++i) buf[i] = nwii::runtime::g_mmu->read8(addr + i);
+    std::memcpy(buf.data(), p, size);
     std::lock_guard<std::mutex> lk(g_dl_snap_mtx);
     if (g_dl_snap.size() > 1024) g_dl_snap.clear();
-    g_dl_snap[((uint64_t)(addr & 0x03FFFFFF) << 24) ^ size] = std::move(buf);
+    g_dl_snap[((uint64_t)phys << 24) ^ size] = std::move(buf);
 }
 
 bool GX_DL_Fetch(uint32_t addr, uint32_t size, std::vector<uint8_t>& out) {
+    const uint32_t phys = addr & 0x3FFFFFFFu;
     std::lock_guard<std::mutex> lk(g_dl_snap_mtx);
-    auto it = g_dl_snap.find(((uint64_t)(addr & 0x03FFFFFF) << 24) ^ size);
+    auto it = g_dl_snap.find(((uint64_t)phys << 24) ^ size);
     if (it == g_dl_snap.end() || it->second.size() != size) return false;
     out = it->second;
     return true;

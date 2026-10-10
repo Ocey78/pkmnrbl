@@ -150,6 +150,17 @@ if(PKMNRBL_BUILD_BOOT_TESTS)
     target_compile_features(renderer_diagnostics_tests PRIVATE cxx_std_20)
     add_test(NAME renderer_diagnostics COMMAND renderer_diagnostics_tests)
 
+    add_executable(gx_display_list_memory_tests
+        tests/gx_display_list_memory_tests.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/gx.cpp
+        third_party/NWiiRecomp/nWiiRuntime/src/hle/gx/fifo_parser.cpp)
+    target_include_directories(gx_display_list_memory_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NWiiRecomp/nWiiRuntime/include")
+    target_compile_features(gx_display_list_memory_tests PRIVATE cxx_std_20)
+    add_test(NAME gx_display_list_memory COMMAND gx_display_list_memory_tests)
+    set_tests_properties(gx_display_list_memory PROPERTIES ENVIRONMENT_MODIFICATION
+        "NWII_NODLCACHE=unset:;NWII_NOSEED=unset:;NWII_GXTRACE=unset:;NWII_TEVTRACE=unset:;NWII_TEXMTXDBG=unset:;NWII_SKINDBG=unset:;NWII_DLDBG=unset:;NWII_XFDBG=unset:;NWII_VATDBG=unset:;NWII_DESYNC=unset:;NWII_SAMPLE=unset:;NWII_FRAMESIG=unset:;NWII_GXDUMP=unset:;NWII_WGSEG=unset:;NWII_WGTRACE=unset:")
+
 endif()
 
 add_library(pkmnrbl_build_options INTERFACE)
