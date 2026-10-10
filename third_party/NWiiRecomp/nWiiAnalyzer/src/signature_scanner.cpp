@@ -11,9 +11,9 @@ SignatureScanner::SignatureScanner() {
         { "IOS_Open", { "9421FFE0", "7C0802A6", "9001????", "34010008", "93E1????", "93C1????", "3BC0????", "93A1????" } },
         { "IOS_IoctlAsync", { "9421FFC0", "7C0802A6", "9001????", "3961????", "48??????", "34010008", "7C771B78" } },
         { "IOS_Ioctl", { "9421FFD0", "7C0802A6", "9001????", "3961????", "48??????", "34010008", "7C791B78" } },
-        { "IOS_IoctlvAsync", { "9421FF90", "7C0802A6", "9001????", "93E1????", "7CBF2B78", "93C1????", "7C9E2378" } },
-        { "IOS_Ioctlv", { "9421FF90", "7C0802A6", "9001????", "3961????", "48??????", "7C7B1B78", "7C9C2378", "7CBD2B78" } }
-
+        // Frame setup, register saves, and argument captures do not identify
+        // IOS_Ioctlv or IOS_IoctlvAsync: unrelated functions share these prologues.
+        // Keep those functions native; verified explicit HLE hooks remain opt-in.
         
 
         

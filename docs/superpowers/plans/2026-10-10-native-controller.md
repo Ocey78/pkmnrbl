@@ -41,7 +41,7 @@
 
 - [x] Ensure generated hook declarations link; run synthetic generated-output tests in both layouts with an originally undeclared custom hook.
 - [x] Rebuild/export title and interpreter-OFF executable; bounded real run must either render title screen or provide exact next gate. Keep generated code private.
-- [ ] Independent review, fresh full tests and policy checks; commit/push verified redistributable milestone and update handoff.
+- [x] Independent review, fresh full tests and policy checks; commit/push verified redistributable milestone and update handoff (e6aa265).
 
 ## Evidence ledger
 

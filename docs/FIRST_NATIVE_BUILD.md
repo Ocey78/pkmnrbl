@@ -10,7 +10,7 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 - Title: WPSE01_01; game ID: WPSE; title ID: 0001000157505345.
 - main.dol SHA-1: fd9a2c00c97e420a42355e2c27f3dc0ebbd3d8f9.
-- Entry: 0x80004050; latest AOT discovery contains 14,374 functions.
+- Entry: 0x80004050; latest AOT discovery contains 14,375 functions.
 - NWiiRecomp base: 595f176f1d24cc54ff2e8389feed12d7fb553cc2.
 - Legal inputs stay in ignored local/WPSE01_01/.
 - AOT output stays in ignored generated/WPSE01_01/.
@@ -20,13 +20,15 @@ No Dolphin runtime, JIT/emulator wrapper, Unity or gameplay rewrite.
 
 A native Windows executable links with Visual Studio 2022 x64. The local
 interpreter-OFF build has progressed through resource loading. The Release
-suite now contains 28 passing tests, including native input, ES content and real
+suite now contains 31 passing tests, including native input, ES content and real
 GPU tests. The current interpreter-OFF build renders the English instruction
 screen and the actual Pokemon Rumble title menu (New Game / Options). The user
 confirms the requested controls work and reach the save screen, but reports a
 black screen after starting a save. Save persistence and gameplay are NOT yet
 verified; this is not a finished release. See the latest section below;
 the older sections are chronological evidence, not the current blocker.
+The last completed title executable is the controls milestone e6aa265. Further
+source fixes below pass regressions but still need the combined game rebuild.
 
 Preserve the solved boot milestones:
 
@@ -424,6 +426,65 @@ GPU execution; standalone export and repository-policy checks pass. Windows CI
 explicitly includes both new generated-hook layouts and input tests. Independent
 review's reconnect finding was fixed and rechecked; no findings remain for this
 limited milestone. Unrelated local helper scripts are preserved.
+
+### Post-menu AOT corrections; full rebuild pending (2026-10-10)
+
+Controls/title-menu milestone e6aa265 passed Windows CI:
+https://github.com/Ocey78/pkmnrbl/actions/runs/38027033907
+
+A longer run stayed on the title menu (no confirmed save action), then exited1
+after approximately140 seconds with native-only guard PC8028F440,
+LR80276D3C, CTR8028F440. This is a separate callback discovery gap, not proof of
+the user's save-start black screen. The original callback8028F440..8028F588 is
+absent from generated function bounds; setup8028E3B0 constructs its address
+across branches/calls and passes it to802768A0 for storage at object+38.
+Caller80276CD0 loads that field and bctrl at80276D38. A verified CSV root now
+includes the callback without changing general discovery or enabling fallback.
+An original synthetic object callback fails in both generated layouts without
+the root, then passes with it: one invocation, exact callback return address,
+resumed caller and preserved outer LR. The previous8012B740 case still passes.
+
+Separately, two generic prologue signatures incorrectly replaced NAND wrappers
+with IOS_Ioctlv and IOS_IoctlvAsync. Original802E4830/4950 call create-file async;
+802E5180/52A0 call create-directory async. Original802E4630/4740 call synchronous
+ISFSCreateFile802F4470 (command9,input76), not IOS_IoctlvAsync. A path pointer was
+treated as a negative fd in an earlier trace. The two unsupported automatic
+matches are removed; other matches and verified explicit hooks are unchanged.
+True IOS_Ioctlv802F2930 and async802F2840 already have translated MMIO paths.
+Original synthetic functions reproducing each generic prologue failed before
+the removals and now execute their bodies, helpers and returns natively in both
+layouts, with no IOS replacement or interpreter call. No guest code is shipped
+in those fixtures. Independent reviews found no remaining scoped issues.
+
+Fresh final verification:31/31 Release tests and10/10 Debug tests pass, with
+real GPU execution. Export/policy checks pass. This does NOT verify the combined
+title executable yet: export after the synchronous removal and new callback
+root discovered14,375 functions, but its full compile was stopped for low disk
+space. The additional async-signature removal came afterward and is not yet
+in that export. The last completed executable remains e6aa265.
+
+Resume in this order:
+
+1. Free disk space. A stopped legacy configure smoke test copied the complete
+   workspace into a newly created local temporary directory named
+   pkmnrbl-configure-9bb134c26e274d4cacd2862d428f8632. Agent cleanup was blocked;
+   the user was asked to remove only that duplicate. Original repo/game files
+   must stay untouched. Do not rerun tests/cmake_configure.Tests.ps1 from this
+   full game workspace until its copy policy is corrected; clean CI is safe.
+2. Rebuild nwiirecomp.exe to include BOTH signature removals. Regenerate using
+   config/WPSE01_01/recomp.toml, then build the generated Release title with
+   PKMNRBL_ENABLE_BRINGUP_INTERPRETER=OFF. Do not infer completion from objects
+   left by the interrupted compile. Existing warnings are not new failures.
+3. Repeat a longer menu run past the previous140-second guard. Confirm the
+   callback is reached natively and inspect private screenshots/exit status.
+4. Capture an actual New Game/save attempt. The previous user trace had only
+   about20 seconds of black output while loading work continued; the longer
+   automated trace never left the menu. Save storage remains incomplete:
+   FSDevice lacks creation/metadata ioctls and disk persistence. Add failing
+   original regressions for behavior proven by the next trace before fixing it.
+
+Private evidence: build/logs/save-start-20261010.log/.err, _12000.bmp and
+post-callback-export-20261010.log. Do not upload these or the temporary copy.
 
 ## Reproduction
 
