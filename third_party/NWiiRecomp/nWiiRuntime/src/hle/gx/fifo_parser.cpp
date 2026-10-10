@@ -718,7 +718,7 @@ namespace {
     // current projection or the parser bank left behind by later commands.
     uint64_t DecodeDiagnosticOrdinal(const DrawRaw& raw) {
         static const bool enabled = std::getenv("NWII_RENDER_DIAG") != nullptr;
-        if (!enabled || !raw.need_normal) return 0;
+        if (!enabled || raw.vat.posMask == VtxAttrMask::None) return 0;
         static uint64_t qualifying = 0;
         static unsigned records = 0;
         if (records >= 128) return 0;
@@ -796,7 +796,7 @@ namespace {
         // Also reports partial decodes on existing early-return paths. Header
         // fields are owned here because successful decode releases cmd.raw.
         ~DecodeDrawDiagnostic() {
-            printf("[GXDECODE] lit_draw=%llu input=%u decoded=%zu "
+            printf("[GXDECODE] position_draw=%llu input=%u decoded=%zu "
                    "posmask=%u type=%u components=%u shift=%u arraybase=%08x stride=%u "
                    "object_min=%g,%g,%g object_max=%g,%g,%g object_zero=%u "
                    "matrix=bank:%u,single:%u,defer:%u matrix_zero=%u "

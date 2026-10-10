@@ -22,3 +22,12 @@ found no issues and noted other scalar branches/cap are code-reviewed only.
 Checkpoint b5999d8 pushed. The diagnostic was copied with the separately tested
 one-line direct-XF marker fix; native OFF rebuild4.01s succeeded. Real
 e-direct-xf-20261010 is running; observation outcome remains pending.
+
+Follow-up: the user confirms captions on black after the direct-XF correction.
+The log contains no GXDECODE records because every decoded draw has
+need_normal=false; lighting is not a valid filter for this coordinate probe.
+The same original fixture with need_normal=false reproduces the missing
+observation (enabled test RED, disabled control GREEN). Select draws with
+position attributes instead, retaining the record cap, default-off behavior,
+and unchanged coordinate/matrix calculations. Rebuild and rerun the title
+before choosing any further rendering behavior correction.

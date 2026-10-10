@@ -882,6 +882,23 @@ private e-direct-xf-20261010 is running. Visual recovery is not yet established.
 Source checkpoints6c312ef (memory contract) andb5999d8 (diagnostics) are pushed;
 6c312ef Windows CI38069096482 passed. No game assets/code/captures were uploaded.
 
+### Position diagnostic filter corrected
+
+The e-direct-xf-20261010 run still showed captions on black, confirmed by the
+user. There were no GXDECODE records: its lighting filter excluded every draw,
+even though render-time channel state later enabled lighting. Parse-time
+need_normal reads renderer-owned XF state before the current command stream is
+replayed. This is a separate normal-decoding correctness candidate, not evidence
+that lighting collapses position coordinates.
+
+The bounded coordinate diagnostic now selects any draw with position attributes,
+not only need_normal draws. Changing the original fixture to unlit reproduced
+the missing observation first; the enabled test now passes and disabled logging
+remains silent. Fresh complete Release71/71 (10.89s) and Debug42/42 (2.00s)
+passed, as did independent review. Native interpreter-OFF rebuild4.19s succeeded
+with zero warnings/errors. The new e-position-decode-20261010 run is recording
+coordinates; gameplay/cutscene recovery is still unverified.
+
 ## Reproduction
 
 Full legal local build: tools/Invoke-NativeBuild.ps1.

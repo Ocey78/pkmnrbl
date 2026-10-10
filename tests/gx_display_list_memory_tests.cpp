@@ -112,7 +112,8 @@ int decode_diagnostic_fixture() {
     raw.vat.posMask = VtxAttrMask::Direct;
     raw.vat.posType = VtxAttrType::F32;
     raw.vat.posElements = true;
-    raw.need_normal = true; // qualify as a lit draw without unrelated attributes
+    // Coordinate observations must not depend on lighting being enabled.
+    raw.need_normal = false;
     raw.count = 3;
     raw.snap_pos_bank.assign(256, 0.0f);
     raw.snap_pos_bank[12] = 1.0f; // another slot is nonzero; selected slot 0 is zero
@@ -125,7 +126,7 @@ int decode_diagnostic_fixture() {
         }
     }
     FifoParser::DecodeDraw(command);
-    check(command.vertices.size() == 3, "lit diagnostic fixture decodes all original vertices");
+    check(command.vertices.size() == 3, "unlit diagnostic fixture decodes all original vertices");
     bool zero = command.vertices.size() == 3;
     bool transformed = zero;
     for (const auto& vertex : command.vertices) {
