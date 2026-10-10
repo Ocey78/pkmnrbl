@@ -12,6 +12,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 namespace nwii::runtime {
 extern MMU *g_mmu;
@@ -53,6 +54,65 @@ static std::vector<BatchVertex> s_batch;
 static float s_proj[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
 static GLuint s_vao = 0, s_vbo = 0;
 static GLShader s_active_shader = {0};
+static bool s_batch_perspective = false;
+
+// Observe the exact positions and projection submitted to the vertex shader.
+// Clip candidates are not a claim that fragments survive depth/alpha/TEV.
+static void DiagnoseBatch() {
+  if (!RendererDiagnosticsEnabled()) return;
+  RendererDiagnosticsRecordBatch(s_batch_perspective, s_batch.size());
+  for (size_t i = 0; i + 2 < s_batch.size(); i += 3) {
+    float clip[3][4];
+    for (unsigned v = 0; v < 3; ++v) {
+      const auto& b = s_batch[i + v];
+      for (unsigned r = 0; r < 4; ++r)
+        clip[v][r] = s_proj[r]*b.x + s_proj[4+r]*b.y +
+                     s_proj[8+r]*b.z + s_proj[12+r];
+    }
+    RendererDiagnosticsRecordTriangle(s_batch_perspective, clip);
+  }
+  if (!s_batch_perspective) return;
+  static uint64_t batches = 0;
+  static unsigned records = 0;
+  ++batches;
+  if (records >= 128 || (batches > 12 && batches % 4096 != 0)) return;
+  ++records;
+  GLint program = 0, linked = 0, front = 0, cull = 0, depth = 0, viewport[4]{};
+  GLboolean depth_write = 0, color_write[4]{};
+  glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+  if (program) glGetProgramiv(program, GL_LINK_STATUS, &linked);
+  glGetIntegerv(GL_FRONT_FACE, &front);
+  glGetIntegerv(GL_CULL_FACE_MODE, &cull);
+  glGetIntegerv(GL_DEPTH_FUNC, &depth);
+  glGetIntegerv(GL_VIEWPORT, viewport);
+  glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_write);
+  glGetBooleanv(GL_COLOR_WRITEMASK, color_write);
+  const auto* p = g_state.projection;
+  float lo[3] = {s_batch[0].x,s_batch[0].y,s_batch[0].z};
+  float hi[3] = {lo[0],lo[1],lo[2]};
+  for (const auto& b : s_batch) {
+    const float xyz[] = {b.x,b.y,b.z};
+    for (unsigned a = 0; a < 3; ++a) {
+      lo[a] = std::min(lo[a],xyz[a]);
+      hi[a] = std::max(hi[a],xyz[a]);
+    }
+  }
+  printf("[GX3D] batch=%llu verts=%zu linked=%d proj=%g,%g,%g,%g,%g,%g "
+         "bp40=%06x bp41=%06x alpha=%06x cull=%d/%x/%x depth=%d/%x/%u "
+         "rgba=%u%u%u%u vp=%d,%d,%d,%d tev=%u c0=%06x c1=%06x "
+         "chan=%x/%x mat=%08x amb=%08x view_min=%g,%g,%g view_max=%g,%g,%g\n",
+         (unsigned long long)batches, s_batch.size(), linked,
+         p[0],p[1],p[2],p[3],p[4],p[5],
+         g_state.bp[0x40],g_state.bp[0x41],g_state.bp[0xF3],
+         int(glIsEnabled(GL_CULL_FACE)),cull,front,
+         int(glIsEnabled(GL_DEPTH_TEST)),depth,unsigned(depth_write),
+         unsigned(color_write[0]),unsigned(color_write[1]),
+         unsigned(color_write[2]),unsigned(color_write[3]),
+         viewport[0],viewport[1],viewport[2],viewport[3],
+         unsigned(g_state.numTevStages),g_state.bp[0xC0],g_state.bp[0xC1],
+         g_state.xf[0xE],g_state.xf[0x10],g_state.xf[0xC],g_state.xf[0xA],
+         lo[0],lo[1],lo[2],hi[0],hi[1],hi[2]);
+}
 
 static GLuint CompileShader(const char *vs, const char *fs) {
   GLuint v = glCreateShader(GL_VERTEX_SHADER);
@@ -107,6 +167,7 @@ static void FlushBatch() {
     if (dn++ < 5)
       printf("[GXTRACE] flush #%d verts=%zu\n", dn, s_batch.size());
   }
+  DiagnoseBatch();
   glDrawArrays(GL_TRIANGLES, 0, s_batch.size());
   static const bool s_gxtrace2 = std::getenv("NWII_GXTRACE") != nullptr;
   const bool diag_enabled = RendererDiagnosticsEnabled();
@@ -419,12 +480,16 @@ static void DrawPrimitive(const GXCommand &cmd) {
     s_batch_open = true;
     s_batch_prim = (uint8_t)cmd.prim_type;
   }
-  if (s_skip_draw)
+  if (s_skip_draw) {
+    if (RendererDiagnosticsEnabled())
+      RendererDiagnosticsRecordShaderSkip(CurrentIsPerspective());
     return; // shader for this state not ready yet
+  }
   EmitPrimitive(cmd);
 }
 
 static void SetupDrawState(const GXCommand &cmd) {
+  s_batch_perspective = CurrentIsPerspective();
   static const bool use_shader = (std::getenv("NWII_NOSHADER") == nullptr);
   if (!use_shader)
     return;

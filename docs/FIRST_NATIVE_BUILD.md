@@ -723,8 +723,46 @@ caption milestone, NOT a verified complete cutscene or playable game: the
 scene's 3D visuals, timing, sound, later inputs and persistent saves still
 need validation. Continue observing this run and map any next proven blocker.
 
-14fc2f8 Windows CI run38065496404 passed. bdfad84 CI run38066137684 was still
-running at the latest check. Keep all title output/assets/screenshots private.
+14fc2f8 Windows CI run38065496404, bdfad84 run38066137684 and 2a08bbc
+run38066653505 all passed. Keep all title output/assets/screenshots private.
+
+### Opening sequence: geometry is submitted but clipped
+
+The float-update run completed its600-second bound normally, with empty stderr.
+Several opening captions advanced; the user independently confirmed captions
+over black, with slow playback. Full 3D cutscenes and gameplay remain unverified.
+
+Default-off NWII_RENDER_DIAG now observes actual GL batches separately from
+decoded FIFO draw counts, retaining perspective and orthographic groups through
+later caption draws. Scalar triangle diagnostics identify nonfinite coordinates,
+nonpositive W, common-plane rejection, degeneracy and winding; rejection-plane
+counts can overlap. Bounded GX3D records report applied state and view-space
+bounds. These observations do not force rendering or establish fragment visibility.
+
+Original geometry tests failed before implementation; the GL integration test
+failed before wiring. Full Release67/67 and standalone Debug38/38 passed.
+Independent review found one test blind spot: diagnostics consume GL errors into
+a latch, so tests must inspect it as well as glGetError. Fixed and demonstrated
+failure with an invalid GL-enum mutation, then removed the mutation and reran
+the suite. A subsequent rejection-plane extension failed first and passed after
+implementation; final Release67/67 and Debug diagnostic1/1 pass. Runtime test
+build has27 warnings, zero errors. Initial native diagnostic build was6.38s,
+zero warnings/errors, interpreter OFF. Only four verified runtime files were
+copied to the local generated tree; all unrelated differences were preserved.
+
+The user's confirmed Save A run e-perspective-20261010 removes per-call/watch
+logging. At95s it submitted800 perspective batches/4800vertices/1600triangles:
+all1600 were rejected by a common clip plane, with zero nonfinite coordinates,
+nonpositive W or shader skips. A later window shows26820/26820 rejected triangles.
+Sampled shaders link, culling is disabled and GL error is zero. This narrows the
+next investigation to coordinates/matrix/projection/clipping, not a stopped draw
+loop; it does not prove which transform is wrong. Next run adds exact rejection
+planes and per-batch view bounds, then traces those values backward through FIFO
+matrix snapshots and native scene transforms. Do not add depth/cull bypasses.
+
+Known remaining native AOT inventory: three ordinary rlwnm sites, one deliberate
+trap and data/padding analysis artifacts. None is proven reached in this run.
+Retain failfast OFF behavior and only implement gaps after relevant evidence.
 
 ## Reproduction
 

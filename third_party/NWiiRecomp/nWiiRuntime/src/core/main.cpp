@@ -616,6 +616,24 @@ int main(int argc, char **argv) {
                 static_cast<uint32_t>(glGetError()));
           const auto renderer_diag =
               nwii::runtime::gx::RendererDiagnosticsTakeSnapshot();
+          if (nwii::runtime::gx::RendererDiagnosticsEnabled()) {
+            const auto& d = renderer_diag.perspective;
+            const auto& o = renderer_diag.orthographic;
+            printf("[GXGEOM] perspective batches=%llu verts=%llu skips=%llu "
+                   "tri=%llu nonfinite=%llu w_nonpositive=%llu outside=%llu "
+                   "degenerate=%llu cw=%llu ccw=%llu planes=%llu,%llu,%llu,%llu,%llu,%llu ortho_batches=%llu "
+                   "ortho_verts=%llu ortho_skips=%llu\n",
+                   (unsigned long long)d.batches,(unsigned long long)d.vertices,
+                   (unsigned long long)d.shader_skips,(unsigned long long)d.triangles,
+                   (unsigned long long)d.nonfinite,(unsigned long long)d.nonpositive_w,
+                   (unsigned long long)d.outside,(unsigned long long)d.degenerate,
+                   (unsigned long long)d.clockwise,(unsigned long long)d.counterclockwise,
+                   (unsigned long long)d.outside_planes[0],(unsigned long long)d.outside_planes[1],
+                   (unsigned long long)d.outside_planes[2],(unsigned long long)d.outside_planes[3],
+                   (unsigned long long)d.outside_planes[4],(unsigned long long)d.outside_planes[5],
+                   (unsigned long long)o.batches,(unsigned long long)o.vertices,
+                   (unsigned long long)o.shader_skips);
+          }
           const bool alpha_bypass = std::getenv("NWII_NOALPHATEST") != nullptr;
           const bool color_update =
               (nwii::runtime::gx::g_state.bp[0x41] & (1u << 3)) != 0;

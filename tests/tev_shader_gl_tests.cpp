@@ -1,11 +1,13 @@
 #include "runtime/gx/tev_shader_gen.h"
 #include "runtime/gx/renderer.h"
+#include "runtime/gx/renderer_diagnostics.h"
 #include "runtime/cpu_context.h"
 #include "gl_test_context.h"
 #include <SDL.h>
 #include <glad/glad.h>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <iostream>
 
 namespace nwii::runtime {
@@ -68,7 +70,18 @@ static bool color_bank_regression() {
     commands.push_back(draw);
     glViewport(0, 0, 32, 32);
     glClearColor(0, 0, 0, 0); glClear(GL_COLOR_BUFFER_BIT);
+    RendererDiagnosticsReset();
     renderer->Render(commands);
+    const auto geometry = RendererDiagnosticsTakeSnapshot();
+    if (geometry.first_gl_error != GL_NO_ERROR) {
+        std::cerr << "FAIL: GL error latched during observed orthographic draw\n";
+        return false;
+    }
+    if (geometry.orthographic.batches != 1 || geometry.orthographic.vertices != 3 ||
+        geometry.orthographic.triangles != 1 || geometry.perspective.batches != 0) {
+        std::cerr << "FAIL: actual GPU batch was not observed separately from perspective draws\n";
+        return false;
+    }
     unsigned char pixel[4]{};
     glReadPixels(16, 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
     if (pixel[0] != 64 || pixel[1] != 128 || pixel[2] != 192 || pixel[3] != 255) {
@@ -120,8 +133,31 @@ static bool color_bank_regression() {
         std::cerr << "FAIL: signed eleven-bit color upload\n";
         passed = false;
     }
-    if (glGetError() != GL_NO_ERROR) {
+    const auto color_errors = RendererDiagnosticsTakeSnapshot();
+    if (color_errors.first_gl_error != GL_NO_ERROR || glGetError() != GL_NO_ERROR) {
         std::cerr << "FAIL: GL error during color-bank regression\n";
+        passed = false;
+    }
+    RendererDiagnosticsReset();
+    // An actual perspective draw followed by UI must preserve both groups.
+    projection.payload = {1,0,1,0,0,-1,0};
+    for (auto& vertex : draw.vertices) vertex.pos[2] = -2;
+    renderer->Render({projection, draw});
+    projection.payload = {0.5f,0,0.5f,0,1,0,0};
+    std::memcpy(&projection.payload[6], &orthographic, sizeof(orthographic));
+    renderer->Render({projection, draw});
+    const auto mixed = RendererDiagnosticsTakeSnapshot();
+    if (mixed.first_gl_error != GL_NO_ERROR) {
+        std::cerr << "FAIL: GL error latched during mixed projection draws\n";
+        passed = false;
+    }
+    if (mixed.perspective.batches != 1 || mixed.perspective.vertices != 3 ||
+        mixed.perspective.counterclockwise != 1 || mixed.orthographic.batches != 1) {
+        std::cerr << "FAIL: mixed projection submissions lost geometry diagnostics\n";
+        passed = false;
+    }
+    if (glGetError() != GL_NO_ERROR) {
+        std::cerr << "FAIL: batch observation changed GL error state\n";
         passed = false;
     }
     if (passed) std::cout << "PASS: independent TEV banks, partial writes and signed color upload\n";
@@ -143,6 +179,12 @@ static bool compile(GLuint shader, const std::string& source) {
 }
 
 int main() {
+    // The runtime reads the executable's C environment, not SDL DLL CRT state.
+#ifdef _WIN32
+    _putenv_s("NWII_RENDER_DIAG", "1");
+#else
+    setenv("NWII_RENDER_DIAG", "1", 1);
+#endif
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         std::cout << "SKIP: SDL video unavailable: " << SDL_GetError() << '\n';
         return 77;
